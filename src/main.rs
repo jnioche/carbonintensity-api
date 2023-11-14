@@ -1,15 +1,8 @@
-use error_chain::error_chain;
-use std::{io::Read, process::exit};
+use carbonintensity_api::get_intensity_postcode;
+use std::process::exit;
 
-error_chain! {
-    foreign_links {
-        Io(std::io::Error);
-        HttpRequest(reqwest::Error);
-    }
-}
-
-fn main() -> Result<()> {
-
+#[tokio::main]
+async fn main() {
     let args: Vec<_> = std::env::args().collect();
     if args.len() != 2 {
         eprintln!("Usage:");
@@ -17,16 +10,9 @@ fn main() -> Result<()> {
         exit(1);
     }
     let postcode = &args[1];
-
-    let base_url = "https://api.carbonintensity.org.uk/regional/postcode/";
-    let url = format!("{base_url}{postcode}");
-
-    let mut res = reqwest::blocking::get(url)?;
     
-    let mut body = String::new();
-    res.read_to_string(&mut body)?;
-    println!("{}", body);
-
-    Ok(())
+    let intensity = get_intensity_postcode(postcode).await.expect("Please enter a 3 character UK postcode");
+    
+    println!("Carbon intensity for postcode {}: {:?}", postcode, intensity);
 }
 
