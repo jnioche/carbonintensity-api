@@ -10,9 +10,14 @@ async fn main() {
         exit(1);
     }
     let postcode = &args[1];
-    
-    let intensity = get_intensity_postcode(postcode).await.expect("Please enter a 3 character UK postcode");
-    
-    println!("Carbon intensity for postcode {}: {:?}", postcode, intensity);
-}
 
+    let intensity = get_intensity_postcode(postcode).await;
+    if intensity.is_ok() {
+        println!(
+            "Carbon intensity for postcode {}: {:?}",
+            postcode, intensity.unwrap()
+        );
+    } else {
+        println!("Error Found {:?}", intensity);
+    }
+}
