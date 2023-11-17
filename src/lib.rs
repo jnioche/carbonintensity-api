@@ -1,3 +1,6 @@
+//! API for retrieving data from the Carbon Intensity API
+//! <https://api.carbonintensity.org.uk/>
+
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -39,12 +42,13 @@ struct DataEntry {
     generationmix: Vec<GenerationMix>,
 }
 
+#[serde_with::skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize)]
 struct RegionData {
     regionid: i32,
     dnoregion: String,
     shortname: String,
-    postcode: String,
+    postcode: Option<String>,
     data: Vec<DataEntry>,
 }
 
@@ -53,18 +57,47 @@ struct Root {
     data: Vec<RegionData>,
 }
 
+static BASE_URL: &str = "https://api.carbonintensity.org.uk/";
+
 /// Current carbon intensity for a postcode
-/// in the UK national grid
 ///
-/// https://api.carbonintensity.org.uk/regional/postcode/
+/// <https://api.carbonintensity.org.uk/regional/postcode/>
 ///
 pub async fn get_intensity_postcode(postcode: &str) -> Result<i32, ApiError> {
-    let base_url = "https://api.carbonintensity.org.uk/regional/postcode/";
+    if postcode.len() < 2 || postcode.len() > 3 {
+        return Err(ApiError::Error("Invalid postcode".to_string()));
+    }
+
+    let path = "regional/postcode/";
+    let url = format!("{BASE_URL}{path}{postcode}");
+    get_intensity(&url).await
+}
+
+/// Current carbon intensity for a region
+/// The region id is a number between 1 and 17
+///
+/// <https://api.carbonintensity.org.uk/regional/regionid/>
+///
+pub async fn get_intensity_region(regionid: &u8) -> Result<i32, ApiError> {
+    if regionid < &1 || regionid > &17 {
+        return Err(ApiError::Error(
+            "Invalid regiondid - should be between 1-17".to_string(),
+        ));
+    }
+
+    let path = "regional/regionid/";
+    let url = format!("{BASE_URL}{path}{regionid}");
+    get_intensity(&url).await
+}
+
+/// Internal method to handle the querying and parsing
+///
+async fn get_intensity(url: &str) -> Result<i32, ApiError> {
     let client = Client::new();
-    let url = format!("{base_url}{postcode}");
     let response = client.get(url).send().await?;
 
     let status = response.status();
+
     if status.is_success() {
         let structure: Root = response.json::<Root>().await?;
         if let Some(data) = structure.data.first() {
@@ -72,7 +105,7 @@ pub async fn get_intensity_postcode(postcode: &str) -> Result<i32, ApiError> {
             // return intensity
             Ok(entry.intensity.forecast)
         } else {
-            return Err(ApiError::Error("Ivalid JSON returned".to_string()));
+            return Err(ApiError::Error("Invalid JSON returned".to_string()));
         }
     } else {
         let body = response.text().await?;
