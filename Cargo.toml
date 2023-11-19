@@ -16,4 +16,8 @@ thiserror = "1.0.50"
 url = "2.4.1"
 futures = "0.3"
 clap = { version = "4.4.8", features = ["derive"] }
+chrono = "0.4.31"
 
+[lib]
+name = "carbonintensity"
+path = "src/lib.rs"
