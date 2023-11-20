@@ -1,7 +1,8 @@
 use std::process;
 
 use carbonintensity::{
-    get_intensities_postcode, get_intensity_postcode, get_intensity_region, ApiError, RegionData,
+    get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
+    ApiError, RegionData,
 };
 use clap::{Parser, Subcommand};
 
@@ -39,10 +40,11 @@ async fn main() {
         match &args.command {
             Commands::Postcode { postcode } => {
                 let result = get_intensities_postcode(postcode, start_date, &end_date).await;
-                handle_results(result, "postcode");
+                handle_results(result);
             }
             Commands::Region { id } => {
-                // let result = get_intensity_region(*id).await;
+                let result = get_intensities_region(*id, start_date, &end_date).await;
+                handle_results(result);
             }
         }
     } else {
@@ -59,7 +61,7 @@ async fn main() {
     }
 }
 
-fn handle_results(result: Result<RegionData, ApiError>, method: &str) {
+fn handle_results(result: Result<RegionData, ApiError>) {
     if result.is_ok() {
         println!("{:?}", result.unwrap());
     } else {

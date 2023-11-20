@@ -1,7 +1,7 @@
 //! API for retrieving data from the Carbon Intensity API
 //! <https://api.carbonintensity.org.uk/>
 
-use chrono::{DateTime, Days, Duration, Local, NaiveDate, NaiveDateTime};
+use chrono::{Days, Local, NaiveDate, NaiveDateTime};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -117,28 +117,17 @@ pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
 fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
     let sd = NaiveDate::parse_from_str(date, "%Y-%m-%d");
     if sd.is_ok() {
-        return Ok(sd.unwrap().and_hms(0, 0, 0));
+        return Ok(sd.unwrap().and_hms_opt(0, 0, 0).unwrap());
     }
+    // try the longest form or fail
     NaiveDateTime::parse_from_str(date, "%Y-%m-%dT%H:%MZ")
 }
 
-///  ISO8601 format YYYY-MM-DDThh:mmZ
-/// but tolerates YYYY-MM-DD
-/// https://api.carbonintensity.org.uk/regional/intensity/2023-05-15/2023-05-20/postcode/RG10
-///
-pub async fn get_intensities_postcode(
-    postcode: &str,
-    start: &str,
-    end: &Option<&str>,
-) -> Result<RegionData, ApiError> {
-    let start_date: NaiveDateTime;
-
-    let sd = parse(start);
-    if sd.is_err() {
-        return Err(ApiError::Error("Invalid start date".to_string() + start));
-    } else {
-        start_date = sd.ok().unwrap();
-    }
+fn normalise_dates(start: &str, end: &Option<&str>) -> Result<String, ApiError> {
+    let start_date: NaiveDateTime = match parse(start) {
+        Ok(res) => res,
+        Err(_err) => return Err(ApiError::Error("Invalid start date".to_string() + start)),
+    };
 
     // if the end is not set - use 14 days from start
     let mut end_date: NaiveDateTime;
@@ -171,11 +160,48 @@ pub async fn get_intensities_postcode(
     }
 
     //  normalise representation of end date
-    let ed = end_date.format("%Y-%m-%dT%H:%MZ").to_string();
+    Ok(end_date.format("%Y-%m-%dT%H:%MZ").to_string())
+}
+
+/// Return a representation of the end date
+/// or an error if the dates are incorrectly formulated
+pub async fn get_intensities_region(
+    regionid: u8,
+    start: &str,
+    end: &Option<&str>,
+) -> Result<RegionData, ApiError> {
+    if regionid < 1 || regionid > 17 {
+        return Err(ApiError::Error(
+            "Invalid regiondid - should be between 1-17".to_string(),
+        ));
+    }
+
+    let ed = normalise_dates(&start, &end)?;
+
+    let path = "regional/intensity/";
+    let url = format!("{BASE_URL}{path}{start}/{ed}/regionid/{regionid}");
+
+    get_intensities(&url).await
+}
+
+///  ISO8601 format YYYY-MM-DDThh:mmZ
+/// but tolerates YYYY-MM-DD
+/// https://api.carbonintensity.org.uk/regional/intensity/2023-05-15/2023-05-20/postcode/RG10
+///
+pub async fn get_intensities_postcode(
+    postcode: &str,
+    start: &str,
+    end: &Option<&str>,
+) -> Result<RegionData, ApiError> {
+    let ed = normalise_dates(&start, &end)?;
 
     let path = "regional/intensity/";
     let url = format!("{BASE_URL}{path}{start}/{ed}/postcode/{postcode}");
 
+    get_intensities(&url).await
+}
+
+pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
     let client = Client::new();
     let response = client.get(url).send().await?;
 
