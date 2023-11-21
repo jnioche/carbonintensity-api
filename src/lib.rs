@@ -70,7 +70,7 @@ static BASE_URL: &str = "https://api.carbonintensity.org.uk/";
 /// <https://api.carbonintensity.org.uk/regional/postcode/>
 ///
 pub async fn get_intensity_postcode(postcode: &str) -> Result<i32, ApiError> {
-    if postcode.len() < 2 || postcode.len() > 3 {
+    if postcode.len() < 2 || postcode.len() > 4 {
         return Err(ApiError::Error("Invalid postcode".to_string()));
     }
 
@@ -193,6 +193,10 @@ pub async fn get_intensities_postcode(
     start: &str,
     end: &Option<&str>,
 ) -> Result<RegionData, ApiError> {
+    if postcode.len() < 2 || postcode.len() > 4 {
+        return Err(ApiError::Error("Invalid postcode".to_string()));
+    }
+
     let ed = normalise_dates(&start, &end)?;
 
     let path = "regional/intensity/";

@@ -24,7 +24,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// UK postcode e.g. BS7, E1
+    /// Outward section of a UK postcode e.g. E1, BS7, WC2N
     Postcode { postcode: String },
     /// Region ID, a number between 1 and 17
     Region { id: u8 },
