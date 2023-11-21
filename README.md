@@ -1,7 +1,8 @@
 # carbonintensity-api
-A simple Rust library to help retrieve data from [https://api.carbonintensity.org.uk/]
 
-Mostly a way for the author to learn Rust, not all functionalities of the CarbonIntensity API will be exposed.
+A simple Rust library to help retrieve data from the [Carbon Intensity API](https://api.carbonintensity.org.uk/), not all functionalities of the CarbonIntensity API might be exposed.
+
+Please read the API's [terms of use](https://github.com/carbon-intensity/terms).
 
 An executable is provided to try the library. With Rust and Cargo installed
 
