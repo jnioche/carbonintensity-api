@@ -169,7 +169,7 @@ pub async fn get_intensities_region(
     regionid: u8,
     start: &str,
     end: &Option<&str>,
-) -> Result<RegionData, ApiError> {
+) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
     if regionid < 1 || regionid > 17 {
         return Err(ApiError::Error(
             "Invalid regiondid - should be between 1-17".to_string(),
@@ -181,7 +181,8 @@ pub async fn get_intensities_region(
     let path = "regional/intensity/";
     let url = format!("{BASE_URL}{path}{start}/{ed}/regionid/{regionid}");
 
-    get_intensities(&url).await
+    let region_data = get_intensities(&url).await?;
+    to_tuple(region_data)
 }
 
 ///  ISO8601 format YYYY-MM-DDThh:mmZ
@@ -192,7 +193,7 @@ pub async fn get_intensities_postcode(
     postcode: &str,
     start: &str,
     end: &Option<&str>,
-) -> Result<RegionData, ApiError> {
+) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
     if postcode.len() < 2 || postcode.len() > 4 {
         return Err(ApiError::Error("Invalid postcode".to_string()));
     }
@@ -201,8 +202,20 @@ pub async fn get_intensities_postcode(
 
     let path = "regional/intensity/";
     let url = format!("{BASE_URL}{path}{start}/{ed}/postcode/{postcode}");
+    let region_data = get_intensities(&url).await?;
+    to_tuple(region_data)
+}
 
-    get_intensities(&url).await
+/// converts the values from JSON into a simpler
+/// representation Vec<DateTime, float>
+fn to_tuple(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
+    let mut values: Vec<(NaiveDateTime, i32)> = Vec::new();
+    for d in data.data {
+        let start_date = parse(&d.from).expect("Unparsable date");
+        let intensity = d.intensity.forecast;
+        values.push((start_date, intensity));
+    }
+    Ok(values)
 }
 
 pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {

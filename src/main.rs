@@ -2,8 +2,9 @@ use std::process;
 
 use carbonintensity::{
     get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
-    ApiError, RegionData,
+    ApiError,
 };
+use chrono::NaiveDateTime;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -61,9 +62,11 @@ async fn main() {
     }
 }
 
-fn handle_results(result: Result<RegionData, ApiError>) {
+fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     if result.is_ok() {
-        println!("{:?}", result.unwrap());
+        for t in result.unwrap() {
+            println!("{}, {}", t.0, t.1);
+        }
     } else {
         eprintln!("{}", result.unwrap_err());
         process::exit(1);
