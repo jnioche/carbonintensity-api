@@ -1,4 +1,7 @@
 # carbonintensity-api
+[![crates.io](https://img.shields.io/crates/d/carbonintensity-api)](https://crates.io/crates/carbonintensity-api)
+[![crates.io](https://img.shields.io/crates/v/carbonintensity-api)](https://crates.io/crates/carbonintensity-api)
+[![API](https://docs.rs/carbonintensity-api/badge.svg)](https://docs.rs/carbonintensity-api)
 
 A simple Rust library to help retrieve data from the [Carbon Intensity API](https://api.carbonintensity.org.uk/), not all functionalities of the CarbonIntensity API might be exposed.
 
