@@ -49,23 +49,23 @@ To do the same for a region
 
 The region id is a number between 1 and 17
 
- 1 North Scotland
- 2 South Scotland
- 3 North West England
- 4 North East England
- 5 South Yorkshire
- 6 North Wales, Merseyside and Cheshire
- 7 South Wales
- 8 West Midlands
- 9 East Midlands
- 10 East England
- 11 South West England
- 12 South England
- 13 London
- 14 South East England
- 15 England
- 16 Scotland
- 17 Wales
+ 1. North Scotland
+ 2. South Scotland
+ 3. North West England
+ 4. North East England
+ 5. South Yorkshire
+ 6. North Wales, Merseyside and Cheshire
+ 7. South Wales
+ 8. West Midlands
+ 9. East Midlands
+ 10. East England
+ 11. South West England
+ 12. South England
+ 13. London
+ 14. South East England
+ 15. England
+ 16. Scotland
+ 17. Wales
 
 
 Specifying dates will return a list of intensities for a region or postcode. If no end date is provided, one will be generated with a value of 13 days from the start date.
