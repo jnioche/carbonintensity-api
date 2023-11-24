@@ -1,7 +1,7 @@
 //! API for retrieving data from the Carbon Intensity API
 //! <https://api.carbonintensity.org.uk/>
 
-use chrono::{Days, Local, NaiveDate, NaiveDateTime};
+use chrono::{Days, Local, NaiveDate, NaiveDateTime, Duration};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -123,8 +123,9 @@ fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
     NaiveDateTime::parse_from_str(date, "%Y-%m-%dT%H:%MZ")
 }
 
-fn normalise_dates(start: &str, end: &Option<&str>) -> Result<String, ApiError> {
-    let start_date: NaiveDateTime = match parse(start) {
+/// Normalises the start and end dates
+fn normalise_dates(start: &str, end: &Option<&str>) -> Result<(String, String), ApiError> {
+    let mut start_date: NaiveDateTime = match parse(start) {
         Ok(res) => res,
         Err(_err) => return Err(ApiError::Error("Invalid start date".to_string() + start)),
     };
@@ -159,8 +160,12 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<String, ApiError> 
         return Err(ApiError::Error("More than 14 days in range".to_string()));
     }
 
-    //  normalise representation of end date
-    Ok(end_date.format("%Y-%m-%dT%H:%MZ").to_string())
+    // shift dates by one minute
+    start_date = start_date+Duration::minutes(1);
+    end_date = end_date+Duration::minutes(1);
+
+    //  normalise representations
+    Ok((start_date.format("%Y-%m-%dT%H:%MZ").to_string(), end_date.format("%Y-%m-%dT%H:%MZ").to_string()))
 }
 
 /// Return a representation of the end date
@@ -176,11 +181,10 @@ pub async fn get_intensities_region(
         ));
     }
 
-    let ed = normalise_dates(&start, &end)?;
+    let normalised_dates = normalise_dates(&start, &end)?;
 
     let path = "regional/intensity/";
-    let url = format!("{BASE_URL}{path}{start}/{ed}/regionid/{regionid}");
-
+    let url = format!("{BASE_URL}{path}{}/{}/regionid/{regionid}", normalised_dates.0, normalised_dates.1);
     let region_data = get_intensities(&url).await?;
     to_tuple(region_data)
 }
@@ -198,10 +202,10 @@ pub async fn get_intensities_postcode(
         return Err(ApiError::Error("Invalid postcode".to_string()));
     }
 
-    let ed = normalise_dates(&start, &end)?;
+    let normalised_dates = normalise_dates(&start, &end)?;
 
     let path = "regional/intensity/";
-    let url = format!("{BASE_URL}{path}{start}/{ed}/postcode/{postcode}");
+    let url = format!("{BASE_URL}{path}{}/{}/postcode/{postcode}", normalised_dates.0, normalised_dates.1);
     let region_data = get_intensities(&url).await?;
     to_tuple(region_data)
 }
