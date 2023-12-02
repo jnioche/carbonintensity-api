@@ -1,7 +1,7 @@
 //! API for retrieving data from the Carbon Intensity API
 //! <https://api.carbonintensity.org.uk/>
 
-use chrono::{Days, Local, NaiveDate, NaiveDateTime, Duration};
+use chrono::{Duration, Local, NaiveDate, NaiveDateTime};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -124,16 +124,23 @@ fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
 }
 
 /// Normalises the start and end dates
-fn normalise_dates(start: &str, end: &Option<&str>) -> Result<(String, String), ApiError> {
-    let mut start_date: NaiveDateTime = match parse(start) {
+/// returns ranges that are acceptable by the API
+/// both in their duration and string representation
+fn normalise_dates(
+    start: &str,
+    end: &Option<&str>,
+) -> Result<Vec<(NaiveDateTime, NaiveDateTime)>, ApiError> {
+    let start_date: NaiveDateTime = match parse(start) {
         Ok(res) => res,
         Err(_err) => return Err(ApiError::Error("Invalid start date".to_string() + start)),
     };
 
-    // if the end is not set - use 14 days from start
+    let now = Local::now().naive_local();
+
+    // if the end is not set - use now
     let mut end_date: NaiveDateTime;
     if end.is_none() {
-        end_date = start_date.checked_add_days(Days::new(13)).unwrap();
+        end_date = now;
     } else {
         // a date exists
         let sd = parse(end.unwrap());
@@ -147,29 +154,31 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<(String, String), 
     }
 
     // check that the date is not in the future - otherwise set it to now
-    let now = Local::now().naive_local();
-
     if now.timestamp() < end_date.timestamp() {
         end_date = now;
     }
 
-    //  finally check that the date range doesn't exceed 14 days
-    let duration = end_date - start_date;
+    //  split into ranges
+    let mut ranges = Vec::new();
 
-    if duration.num_days() >= 14 {
-        return Err(ApiError::Error("More than 14 days in range".to_string()));
+    let duration = Duration::days(13);
+    let mut current = start_date.clone();
+    loop {
+        let next_end = current + duration;
+        if next_end >= end_date {
+            ranges.push((current, end_date));
+            break;
+        } else {
+            ranges.push((current, next_end));
+        }
+
+        current = next_end.clone();
     }
-
-    // shift dates by one minute
-    start_date = start_date+Duration::minutes(1);
-    end_date = end_date+Duration::minutes(1);
-
-    //  normalise representations
-    Ok((start_date.format("%Y-%m-%dT%H:%MZ").to_string(), end_date.format("%Y-%m-%dT%H:%MZ").to_string()))
+    Ok(ranges)
 }
 
-/// Return a representation of the end date
-/// or an error if the dates are incorrectly formulated
+/// Return a vector containing the intensity measures
+/// per 30 min window for a given region
 pub async fn get_intensities_region(
     regionid: u8,
     start: &str,
@@ -181,12 +190,28 @@ pub async fn get_intensities_region(
         ));
     }
 
-    let normalised_dates = normalise_dates(&start, &end)?;
-
     let path = "regional/intensity/";
-    let url = format!("{BASE_URL}{path}{}/{}/regionid/{regionid}", normalised_dates.0, normalised_dates.1);
-    let region_data = get_intensities(&url).await?;
-    to_tuple(region_data)
+
+    let ranges = normalise_dates(&start, &end)?;
+
+    let mut output = Vec::new();
+
+    // TODO query in parallel
+    for r in ranges {
+        // shift dates by one minute
+        let start_date = r.0 + Duration::minutes(1);
+        let end_date = r.1 + Duration::minutes(1);
+
+        let url = format!(
+            "{BASE_URL}{path}{}/{}/regionid/{regionid}",
+            start_date.format("%Y-%m-%dT%H:%MZ").to_string(),
+            end_date.format("%Y-%m-%dT%H:%MZ").to_string()
+        );
+        let region_data = get_intensities(&url).await?;
+        let mut tuples = to_tuple(region_data)?;
+        output.append(&mut tuples);
+    }
+    Ok(output)
 }
 
 ///  ISO8601 format YYYY-MM-DDThh:mmZ
@@ -202,12 +227,27 @@ pub async fn get_intensities_postcode(
         return Err(ApiError::Error("Invalid postcode".to_string()));
     }
 
-    let normalised_dates = normalise_dates(&start, &end)?;
+    let ranges = normalise_dates(&start, &end)?;
 
+    let mut output = Vec::new();
     let path = "regional/intensity/";
-    let url = format!("{BASE_URL}{path}{}/{}/postcode/{postcode}", normalised_dates.0, normalised_dates.1);
-    let region_data = get_intensities(&url).await?;
-    to_tuple(region_data)
+
+    // TODO query in parallel
+    for r in ranges {
+        // shift dates by one minute
+        let start_date = r.0 + Duration::minutes(1);
+        let end_date = r.1 + Duration::minutes(1);
+
+        let url = format!(
+            "{BASE_URL}{path}{}/{}/postcode/{postcode}",
+            start_date.format("%Y-%m-%dT%H:%MZ").to_string(),
+            end_date.format("%Y-%m-%dT%H:%MZ").to_string()
+        );
+        let region_data = get_intensities(&url).await?;
+        let mut tuples = to_tuple(region_data)?;
+        output.append(&mut tuples);
+    }
+    Ok(output)
 }
 
 /// converts the values from JSON into a simpler
@@ -294,5 +334,14 @@ mod tests {
 
         let result: Result<PowerData, serde_json::Error> = serde_json::from_str(json_str);
         println!("{:?}", result);
+    }
+
+    #[test]
+    fn range_splitting() {
+        let start = parse("2023-01-01").unwrap();
+        let end = parse("2023-12-31").unwrap();
+
+        let periods = split_periods(start, end);
+        println!("{:?}", periods);
     }
 }

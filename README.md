@@ -33,7 +33,7 @@ Commands:
 
 Options:
   -s, --start-date <START_DATE>  
-  -e, --end-date <END_DATE>      
+  -e, --end-date <END_DATE>
   -h, --help                     Print help
   -V, --version                  Print version
 
@@ -68,7 +68,7 @@ The region id is a number between 1 and 17
  17. Wales
 
 
-Specifying dates will return a list of intensities for a region or postcode. If no end date is provided, one will be generated with a value of 13 days from the start date.
+Specifying dates will return a list of intensities for a region or postcode. If no end date is provided, the current day and time will be used.
 
 The dates are expected to be at the `%Y-%m-%dT%H:%MZ` format or simply `%Y-%m-%d`, for instance 
 
