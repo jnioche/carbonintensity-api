@@ -1,7 +1,7 @@
 //! API for retrieving data from the Carbon Intensity API
 //! <https://api.carbonintensity.org.uk/>
 
-use chrono::{Duration, Local, NaiveDate, NaiveDateTime};
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -164,7 +164,13 @@ fn normalise_dates(
     let duration = Duration::days(13);
     let mut current = start_date.clone();
     loop {
-        let next_end = current + duration;
+        let mut next_end = current + duration;
+        // break the end of year boundary
+        let new_year_d = NaiveDate::from_ymd_opt(current.year() + 1, 1, 1).unwrap();
+        let new_year = NaiveDateTime::new(new_year_d, NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+        if next_end >= new_year {
+            next_end = new_year;
+        }
         if next_end >= end_date {
             ranges.push((current, end_date));
             break;
