@@ -338,10 +338,7 @@ mod tests {
 
     #[test]
     fn range_splitting() {
-        let start = parse("2023-01-01").unwrap();
-        let end = parse("2023-12-31").unwrap();
-
-        let periods = split_periods(start, end);
+        let periods = normalise_dates("2022-12-01", &Option::Some("2023-02-01"));
         println!("{:?}", periods);
     }
 }
