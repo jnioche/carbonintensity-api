@@ -1,6 +1,6 @@
 [package]
 name = "carbonintensity-api"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Julien Nioche <jnioche@gmail.com>"]
 description = "Provides a client for the UK National Grid Carbon Intensity API"
