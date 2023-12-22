@@ -1,11 +1,11 @@
-use std::process;
+use std::{process, str::FromStr};
 
 use carbonintensity::{
     get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
     ApiError,
 };
 use chrono::NaiveDateTime;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -19,43 +19,62 @@ struct Args {
     #[clap(short, long)]
     pub end_date: Option<String>,
 
-    #[clap(subcommand)]
-    command: Commands,
+    #[clap()]
+    /// numerical value for a region (1-17) or first part of a UK postcode
+    pub value: String,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Outward section of a UK postcode e.g. E1, BS7, WC2N
-    Postcode { postcode: String },
-    /// Region ID, a number between 1 and 17
-    Region { id: u8 },
+enum Target {
+    // NATIONAL,
+    POSTCODE,
+    REGION,
+}
+
+impl FromStr for Target {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            //"" => Ok(Target::NATIONAL),
+            _ if s.parse::<u8>().is_ok() => Ok(Target::REGION),
+            _ => Ok(Target::POSTCODE),
+        }
+    }
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+
+    // let target: Target = args.value.parse().unwrap_or(Target::NATIONAL);
+    let target: Target = args.value.parse().unwrap();
+
     // look for a range if a date was specified
     if let Some(start_date) = &args.start_date {
         let end_date: Option<&str> = args.end_date.as_ref().map(|r| &**r);
 
-        match &args.command {
-            Commands::Postcode { postcode } => {
-                let result = get_intensities_postcode(postcode, start_date, &end_date).await;
+        match target {
+            Target::POSTCODE => {
+                let result =
+                    get_intensities_postcode(args.value.as_str(), start_date, &end_date).await;
                 handle_results(result);
             }
-            Commands::Region { id } => {
-                let result = get_intensities_region(*id, start_date, &end_date).await;
+            Target::REGION => {
+                let id: u8 = args.value.parse::<u8>().unwrap();
+                let result = get_intensities_region(id, start_date, &end_date).await;
                 handle_results(result);
             }
         }
     } else {
-        match &args.command {
-            Commands::Postcode { postcode } => {
+        match target {
+            Target::POSTCODE => {
+                let postcode = args.value.as_str();
                 let result = get_intensity_postcode(postcode).await;
                 handle_result(result, "postcode", postcode);
             }
-            Commands::Region { id } => {
-                let result = get_intensity_region(*id).await;
+            Target::REGION => {
+                let id: u8 = args.value.parse::<u8>().unwrap();
+                let result = get_intensity_region(id).await;
                 handle_result(result, "region", id.to_string().as_str());
             }
         }

@@ -24,28 +24,25 @@ should display the list of available commands and options.
 ```
 Provides a client for the UK National Grid Carbon Intensity API
 
-Usage: carbonintensity-api [OPTIONS] <COMMAND>
+Usage: carbonintensity-api [OPTIONS] <VALUE>
 
-Commands:
-  postcode  Outward section of a UK postcode e.g. E1, BS7, WC2N
-  region    Region ID, a number between 1 and 17
-  help      Print this message or the help of the given subcommand(s)
+Arguments:
+  <VALUE>  numerical value for a region (1-17) or first part of a UK postcode
 
 Options:
   -s, --start-date <START_DATE>  
   -e, --end-date <END_DATE>
   -h, --help                     Print help
   -V, --version                  Print version
-
 ```
 
 To display the current carbon intensity for a given postcode
 
-`carbonintensity-api postcode bs7`
+`carbonintensity-api bs7`
 
 To do the same for a region 
 
-`carbonintensity-api region 11`
+`carbonintensity-api 11`
 
 The region id is a number between 1 and 17
 
