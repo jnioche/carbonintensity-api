@@ -114,6 +114,12 @@ pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
     get_intensity(&url).await
 }
 
+pub async fn get_intensity_national() -> Result<i32, ApiError> {
+    let path = "intensity/";
+    let url = format!("{BASE_URL}{path}");
+    get_intensity(&url).await
+}
+
 fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
     let sd = NaiveDate::parse_from_str(date, "%Y-%m-%d");
     if sd.is_ok() {

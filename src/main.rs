@@ -1,11 +1,12 @@
 use std::{process, str::FromStr};
 
 use carbonintensity::{
-    get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
-    ApiError,
+    get_intensities_postcode, get_intensities_region, get_intensity_national,
+    get_intensity_postcode, get_intensity_region, ApiError,
 };
 use chrono::NaiveDateTime;
 use clap::Parser;
+use std::io::Write;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -20,12 +21,12 @@ struct Args {
     pub end_date: Option<String>,
 
     #[clap()]
-    /// numerical value for a region (1-17) or first part of a UK postcode
-    pub value: String,
+    /// numerical value for a region (1-17) or first part of a UK postcode. If it does not exist, return national data.
+    pub value: Option<String>,
 }
 
 enum Target {
-    // NATIONAL,
+    NATIONAL,
     POSTCODE,
     REGION,
 }
@@ -35,19 +36,37 @@ impl FromStr for Target {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            //"" => Ok(Target::NATIONAL),
             _ if s.parse::<u8>().is_ok() => Ok(Target::REGION),
             _ => Ok(Target::POSTCODE),
         }
     }
 }
 
+// These macros are needed because the normal ones panic when there's a broken pipe.
+// This is especially problematic for CLI tools that are frequently piped into `head` or `grep -q`
+macro_rules! println {
+    () => (print!("\n"));
+    ($fmt:expr) => ({
+      writeln!(std::io::stdout(), $fmt)
+    });
+    ($fmt:expr, $($arg:tt)*) => ({
+      writeln!(std::io::stdout(), $fmt, $($arg)*)
+    })
+  }
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
-    // let target: Target = args.value.parse().unwrap_or(Target::NATIONAL);
-    let target: Target = args.value.parse().unwrap();
+    let target: Target = match args.value {
+        Some(ref value) => value.parse().unwrap_or(Target::NATIONAL),
+        None => Target::NATIONAL,
+    };
+
+    let value: String = match args.value {
+        Some(v) => v,
+        None => String::from(""),
+    };
 
     // look for a range if a date was specified
     if let Some(start_date) = &args.start_date {
@@ -55,27 +74,33 @@ async fn main() {
 
         match target {
             Target::POSTCODE => {
-                let result =
-                    get_intensities_postcode(args.value.as_str(), start_date, &end_date).await;
+                let result = get_intensities_postcode(value.as_str(), start_date, &end_date).await;
                 handle_results(result);
             }
             Target::REGION => {
-                let id: u8 = args.value.parse::<u8>().unwrap();
+                let id: u8 = value.parse::<u8>().unwrap();
                 let result = get_intensities_region(id, start_date, &end_date).await;
                 handle_results(result);
+            }
+            Target::NATIONAL => {
+                println!("NATIONAL");
             }
         }
     } else {
         match target {
             Target::POSTCODE => {
-                let postcode = args.value.as_str();
+                let postcode = value.as_str();
                 let result = get_intensity_postcode(postcode).await;
                 handle_result(result, "postcode", postcode);
             }
             Target::REGION => {
-                let id: u8 = args.value.parse::<u8>().unwrap();
+                let id: u8 = value.parse::<u8>().unwrap();
                 let result = get_intensity_region(id).await;
                 handle_result(result, "region", id.to_string().as_str());
+            }
+            Target::NATIONAL => {
+                let result = get_intensity_national().await;
+                println!("National : {}", result.unwrap());
             }
         }
     }
