@@ -29,18 +29,26 @@ pub struct GenerationMix {
     perc: f64,
 }
 
+#[serde_with::skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Intensity {
     forecast: i32,
+    actual: Option<i32>,
     index: String,
 }
 
+#[serde_with::skip_serializing_none]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Data {
     from: String,
     to: String,
     intensity: Intensity,
-    generationmix: Vec<GenerationMix>,
+    generationmix: Option<Vec<GenerationMix>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NationalData {
+    data: Vec<Data>,
 }
 
 #[serde_with::skip_serializing_none]
@@ -114,10 +122,14 @@ pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
     get_intensity(&url).await
 }
 
+/// Current carbon intensity for the whole of GB
+///
+/// <https://api.carbonintensity.org.uk/intensity/>
+///
 pub async fn get_intensity_national() -> Result<i32, ApiError> {
     let path = "intensity/";
     let url = format!("{BASE_URL}{path}");
-    get_intensity(&url).await
+    get_intensity_global(&url).await
 }
 
 fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
@@ -312,6 +324,20 @@ async fn get_intensity(url: &str) -> Result<i32, ApiError> {
     Ok(intensity)
 }
 
+async fn get_intensity_global(url: &str) -> Result<i32, ApiError> {
+    let result = get_national_data(url).await.map_err(|err| err)?;
+
+    let intensity = result
+        .data
+        .first()
+        .ok_or_else(|| ApiError::Error("No data found".to_string()))?
+        .intensity
+        .actual
+        .ok_or_else(|| ApiError::Error("No intensity data found".to_string()))?;
+
+    Ok(intensity)
+}
+
 // Internal method to handle the querying and parsing
 ///
 async fn get_instant_data(url: &str) -> Result<Root, ApiError> {
@@ -322,6 +348,25 @@ async fn get_instant_data(url: &str) -> Result<Root, ApiError> {
 
     if status.is_success() {
         let structure = response.json::<Root>().await;
+        if structure.is_ok() {
+            return Ok(structure.unwrap());
+        } else {
+            return Err(ApiError::Error("Invalid JSON returned".to_string()));
+        }
+    }
+    // failure
+    let body = response.text().await?;
+    Err(ApiError::RestError { status, body })
+}
+
+async fn get_national_data(url: &str) -> Result<NationalData, ApiError> {
+    let client = Client::new();
+    let response = client.get(url).send().await?;
+
+    let status = response.status();
+
+    if status.is_success() {
+        let structure = response.json::<NationalData>().await;
         if structure.is_ok() {
             return Ok(structure.unwrap());
         } else {
@@ -352,5 +397,28 @@ mod tests {
     fn range_splitting() {
         let periods = normalise_dates("2022-12-01", &Option::Some("2023-02-01"));
         println!("{:?}", periods);
+    }
+
+    #[test]
+    fn test_national() {
+        let json_str = r#"
+        { 
+            "data":[{ 
+              "from": "2024-02-28T16:00Z",
+              "to": "2024-02-28T16:30Z",
+              "intensity": {
+                "forecast": 144,
+                "actual": 137,
+                "index": "moderate"
+              }
+            }]
+          }
+       "#;
+
+        let result: Result<NationalData, serde_json::Error> = serde_json::from_str(json_str);
+        println!(
+            "{:?}",
+            result.unwrap().data.first().unwrap().intensity.actual
+        );
     }
 }

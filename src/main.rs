@@ -21,7 +21,7 @@ struct Args {
     pub end_date: Option<String>,
 
     #[clap()]
-    /// numerical value for a region (1-17) or first part of a UK postcode. If it does not exist, return national data.
+    /// numerical value for a region (1-17) or first part of a UK postcode. If it does not exist, return the value for the whole country.
     pub value: Option<String>,
 }
 
