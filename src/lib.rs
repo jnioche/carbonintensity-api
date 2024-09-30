@@ -210,8 +210,8 @@ pub async fn get_intensities_region(
 
         let url = format!(
             "{BASE_URL}{path}{}/{}/regionid/{regionid}",
-            start_date.format("%Y-%m-%dT%H:%MZ").to_string(),
-            end_date.format("%Y-%m-%dT%H:%MZ").to_string()
+            start_date.format("%Y-%m-%dT%H:%MZ"),
+            end_date.format("%Y-%m-%dT%H:%MZ"),
         );
         let region_data = get_intensities(&url).await?;
         let mut tuples = to_tuple(region_data)?;
@@ -246,8 +246,8 @@ pub async fn get_intensities_postcode(
 
         let url = format!(
             "{BASE_URL}{path}{}/{}/postcode/{postcode}",
-            start_date.format("%Y-%m-%dT%H:%MZ").to_string(),
-            end_date.format("%Y-%m-%dT%H:%MZ").to_string()
+            start_date.format("%Y-%m-%dT%H:%MZ"),
+            end_date.format("%Y-%m-%dT%H:%MZ"),
         );
         let region_data = get_intensities(&url).await?;
         let mut tuples = to_tuple(region_data)?;
