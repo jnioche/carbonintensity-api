@@ -289,7 +289,6 @@ pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
 }
 
 /// Retrieves the intensity value from a structure
-///
 async fn get_intensity(url: &str) -> Result<i32, ApiError> {
     let result = get_instant_data(url).await.map_err(|err| err)?;
 
@@ -307,7 +306,6 @@ async fn get_intensity(url: &str) -> Result<i32, ApiError> {
 }
 
 // Internal method to handle the querying and parsing
-///
 async fn get_instant_data(url: &str) -> Result<Root, ApiError> {
     let client = Client::new();
     let response = client.get(url).send().await?;
