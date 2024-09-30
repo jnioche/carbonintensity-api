@@ -115,9 +115,8 @@ pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
 }
 
 fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
-    let sd = NaiveDate::parse_from_str(date, "%Y-%m-%d");
-    if sd.is_ok() {
-        return Ok(sd.unwrap().and_hms_opt(0, 0, 0).unwrap());
+    if let Ok(date) = NaiveDate::parse_from_str(date, "%Y-%m-%d") {
+        return Ok(date.and_hms_opt(0, 0, 0).unwrap());
     }
     // try the longest form or fail
     NaiveDateTime::parse_from_str(date, "%Y-%m-%dT%H:%MZ")
@@ -276,9 +275,8 @@ pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
 
     if status.is_success() {
         let json_str = response.text().await?;
-        let structure: Result<PowerData, serde_json::Error> = serde_json::from_str(&json_str);
-        if structure.is_ok() {
-            Ok(structure.unwrap().data)
+        if let Ok(PowerData { data }) = serde_json::from_str::<PowerData>(&json_str) {
+            Ok(data)
         } else {
             Err(ApiError::Error(format!("Invalid JSON returned {json_str}")))
         }
@@ -313,9 +311,8 @@ async fn get_instant_data(url: &str) -> Result<Root, ApiError> {
     let status = response.status();
 
     if status.is_success() {
-        let structure = response.json::<Root>().await;
-        if structure.is_ok() {
-            return Ok(structure.unwrap());
+        if let Ok(root) = response.json::<Root>().await {
+            return Ok(root);
         } else {
             return Err(ApiError::Error("Invalid JSON returned".to_string()));
         }

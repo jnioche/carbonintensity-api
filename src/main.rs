@@ -82,9 +82,9 @@ async fn main() {
 }
 
 fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
-    if result.is_ok() {
-        for t in result.unwrap() {
-            println!("{}, {}", t.0, t.1);
+    if let Ok(results) = result {
+        for (time, value) in results {
+            println!("{}, {}", time, value);
         }
     } else {
         eprintln!("{}", result.unwrap_err());
