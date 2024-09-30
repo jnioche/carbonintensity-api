@@ -154,7 +154,7 @@ fn normalise_dates(
     }
 
     // check that the date is not in the future - otherwise set it to now
-    if now.timestamp() < end_date.timestamp() {
+    if now.and_utc().timestamp() < end_date.and_utc().timestamp() {
         end_date = now;
     }
 
