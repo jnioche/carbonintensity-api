@@ -162,7 +162,7 @@ fn normalise_dates(
     let mut ranges = Vec::new();
 
     let duration = Duration::days(13);
-    let mut current = start_date.clone();
+    let mut current = start_date;
     loop {
         let mut next_end = current + duration;
         // break the end of year boundary
@@ -178,7 +178,7 @@ fn normalise_dates(
             ranges.push((current, next_end));
         }
 
-        current = next_end.clone();
+        current = next_end;
     }
     Ok(ranges)
 }
