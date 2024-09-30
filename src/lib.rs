@@ -280,7 +280,7 @@ pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
         if structure.is_ok() {
             Ok(structure.unwrap().data)
         } else {
-            return Err(ApiError::Error(format!("Invalid JSON returned {json_str}")));
+            Err(ApiError::Error(format!("Invalid JSON returned {json_str}")))
         }
     } else {
         let body = response.text().await?;
