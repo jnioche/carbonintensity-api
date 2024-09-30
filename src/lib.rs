@@ -198,7 +198,7 @@ pub async fn get_intensities_region(
 
     let path = "regional/intensity/";
 
-    let ranges = normalise_dates(&start, &end)?;
+    let ranges = normalise_dates(start, end)?;
 
     let mut output = Vec::new();
 
@@ -233,7 +233,7 @@ pub async fn get_intensities_postcode(
         return Err(ApiError::Error("Invalid postcode".to_string()));
     }
 
-    let ranges = normalise_dates(&start, &end)?;
+    let ranges = normalise_dates(start, end)?;
 
     let mut output = Vec::new();
     let path = "regional/intensity/";
