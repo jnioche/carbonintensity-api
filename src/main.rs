@@ -51,7 +51,7 @@ async fn main() {
 
     // look for a range if a date was specified
     if let Some(start_date) = &args.start_date {
-        let end_date: Option<&str> = args.end_date.as_ref().map(|r| &**r);
+        let end_date: Option<&str> = args.end_date.as_deref();
 
         match target {
             Target::POSTCODE => {
