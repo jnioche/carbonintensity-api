@@ -103,7 +103,7 @@ pub async fn get_intensity_postcode(postcode: &str) -> Result<i32, ApiError> {
 /// <https://api.carbonintensity.org.uk/regional/regionid/>
 ///
 pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
-    if regionid < 1 || regionid > 17 {
+    if !(1..=17).contains(&regionid) {
         return Err(ApiError::Error(
             "Invalid regiondid - should be between 1-17".to_string(),
         ));
@@ -190,7 +190,7 @@ pub async fn get_intensities_region(
     start: &str,
     end: &Option<&str>,
 ) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
-    if regionid < 1 || regionid > 17 {
+    if !(1..=17).contains(&regionid) {
         return Err(ApiError::Error(
             "Invalid regiondid - should be between 1-17".to_string(),
         ));
