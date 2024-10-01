@@ -7,6 +7,10 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use url::ParseError;
 
+mod region;
+
+pub use region::Region;
+
 /// An error communicating with the Carbon Intensity API.
 #[derive(Debug, Error)]
 pub enum ApiError {
@@ -80,37 +84,12 @@ pub async fn get_intensity_postcode(postcode: &str) -> Result<i32, ApiError> {
 }
 
 /// Current carbon intensity for a region
-/// The region id is a number between 1 and 17
-///
-/// 1 North Scotland
-/// 2 South Scotland
-/// 3 North West England
-/// 4 North East England
-/// 5 South Yorkshire
-/// 6 North Wales, Merseyside and Cheshire
-/// 7 South Wales
-/// 8 West Midlands
-/// 9 East Midlands
-/// 10 East England
-/// 11 South West England
-/// 12 South England
-/// 13 London
-/// 14 South East England
-/// 15 England
-/// 16 Scotland
-/// 17 Wales
 ///
 /// <https://api.carbonintensity.org.uk/regional/regionid/>
-///
-pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
-    if !(1..=17).contains(&regionid) {
-        return Err(ApiError::Error(
-            "Invalid regiondid - should be between 1-17".to_string(),
-        ));
-    }
-
+pub async fn get_intensity_region(region: Region) -> Result<i32, ApiError> {
     let path = "regional/regionid/";
-    let url = format!("{BASE_URL}{path}{regionid}");
+    let region_id = region as u8;
+    let url = format!("{BASE_URL}{path}{region_id}");
     get_intensity(&url).await
 }
 
@@ -185,17 +164,12 @@ fn normalise_dates(
 /// Return a vector containing the intensity measures
 /// per 30 min window for a given region
 pub async fn get_intensities_region(
-    regionid: u8,
+    region: Region,
     start: &str,
     end: &Option<&str>,
 ) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
-    if !(1..=17).contains(&regionid) {
-        return Err(ApiError::Error(
-            "Invalid regiondid - should be between 1-17".to_string(),
-        ));
-    }
-
     let path = "regional/intensity/";
+    let region_id = region as u8;
 
     let ranges = normalise_dates(start, end)?;
 
@@ -208,7 +182,7 @@ pub async fn get_intensities_region(
         let end_date = r.1 + Duration::minutes(1);
 
         let url = format!(
-            "{BASE_URL}{path}{}/{}/regionid/{regionid}",
+            "{BASE_URL}{path}{}/{}/regionid/{region_id}",
             start_date.format("%Y-%m-%dT%H:%MZ"),
             end_date.format("%Y-%m-%dT%H:%MZ"),
         );
