@@ -1,8 +1,8 @@
-use std::{process, str::FromStr};
+use std::{fmt::Display, process, str::FromStr};
 
 use carbonintensity::{
     get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
-    ApiError,
+    ApiError, Region,
 };
 use chrono::NaiveDateTime;
 use clap::Parser;
@@ -26,19 +26,23 @@ struct Args {
 
 enum Target {
     // NATIONAL,
-    Postcode,
-    Region,
+    Postcode(String),
+    Region(Region),
 }
 
 impl FromStr for Target {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            //"" => Ok(Target::NATIONAL),
-            _ if s.parse::<u8>().is_ok() => Ok(Target::Region),
-            _ => Ok(Target::Postcode),
+        //"" => Ok(Target::NATIONAL)
+
+        // Check if input can be parsed as a Region
+        if let Ok(region) = s.parse::<Region>() {
+            return Ok(Target::Region(region));
         }
+
+        // Assumes the string was a postcode
+        Ok(Target::Postcode(s.to_string()))
     }
 }
 
@@ -54,28 +58,24 @@ async fn main() {
         let end_date: Option<&str> = args.end_date.as_deref();
 
         match target {
-            Target::Postcode => {
-                let result =
-                    get_intensities_postcode(args.value.as_str(), start_date, &end_date).await;
+            Target::Postcode(postcode) => {
+                let result = get_intensities_postcode(&postcode, start_date, &end_date).await;
                 handle_results(result);
             }
-            Target::Region => {
-                let id: u8 = args.value.parse::<u8>().unwrap();
-                let result = get_intensities_region(id, start_date, &end_date).await;
+            Target::Region(region) => {
+                let result = get_intensities_region(region, start_date, &end_date).await;
                 handle_results(result);
             }
         }
     } else {
         match target {
-            Target::Postcode => {
-                let postcode = args.value.as_str();
-                let result = get_intensity_postcode(postcode).await;
-                handle_result(result, "postcode", postcode);
+            Target::Postcode(postcode) => {
+                let result = get_intensity_postcode(&postcode).await;
+                handle_result(result, &"postcode", &postcode);
             }
-            Target::Region => {
-                let id: u8 = args.value.parse::<u8>().unwrap();
-                let result = get_intensity_region(id).await;
-                handle_result(result, "region", id.to_string().as_str());
+            Target::Region(region) => {
+                let result = get_intensity_region(region).await;
+                handle_result(result, &"region", &region);
             }
         }
     }
@@ -92,7 +92,7 @@ fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     }
 }
 
-fn handle_result(result: Result<i32, ApiError>, method: &str, value: &str) {
+fn handle_result(result: Result<i32, ApiError>, method: &dyn Display, value: &dyn Display) {
     if result.is_ok() {
         println!(
             "Carbon intensity for {} {}: {:?}",
