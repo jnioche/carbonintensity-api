@@ -101,7 +101,7 @@ impl Display for RegionError {
 /// Conversion from/into a `ParseIntError`
 ///
 /// This is useful when using the error propagation operator (`?`)
-/// to avoid to having to manually convert the error in the one returned.
+/// to avoid having to manually convert the error in the one returned.
 impl From<ParseIntError> for RegionError {
     fn from(_: ParseIntError) -> Self {
         RegionError::ParseError
