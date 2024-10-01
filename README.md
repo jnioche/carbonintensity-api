@@ -82,18 +82,15 @@ You can use the library in your Rust project by adding it to cargo with
 then declaring it in your code 
 
 ```Rust
-use carbonintensity::{
-    get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
-    ApiError,
-};
+use carbonintensity::{get_intensity, Target, Region};
 
 ...
 
-  let result = get_intensity_postcode(postcode).await;
+  let scotland = Region::Scotland;
+  let result = get_intensity(&Target::Region(scotland)).await;
 
 ```
 
 ## License
 
 This project is provided under [Apache License](http://www.apache.org/licenses/LICENSE-2.0).
-

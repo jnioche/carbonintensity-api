@@ -1,9 +1,6 @@
 use std::process;
 
-use carbonintensity::{
-    get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
-    ApiError, Region,
-};
+use carbonintensity::{get_intensities, get_intensity, ApiError, Target};
 use chrono::NaiveDateTime;
 use clap::Parser;
 
@@ -35,27 +32,11 @@ async fn main() {
     if let Some(start_date) = &args.start_date {
         let end_date: Option<&str> = args.end_date.as_deref();
 
-        match target {
-            Target::Postcode(postcode) => {
-                let result = get_intensities_postcode(&postcode, start_date, &end_date).await;
-                handle_results(result);
-            }
-            Target::Region(region) => {
-                let result = get_intensities_region(region, start_date, &end_date).await;
-                handle_results(result);
-            }
-        }
+        let result = get_intensities(&target, start_date, &end_date).await;
+        handle_results(result);
     } else {
-        match target {
-            Target::Postcode(postcode) => {
-                let result = get_intensity_postcode(&postcode).await;
-                handle_result(result, &"postcode", &postcode);
-            }
-            Target::Region(region) => {
-                let result = get_intensity_region(region).await;
-                handle_result(result, &"region", &region);
-            }
-        }
+        let result = get_intensity(&target).await;
+        handle_result(result, &target);
     }
 }
 

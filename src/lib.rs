@@ -69,30 +69,29 @@ struct PowerData {
     data: RegionData,
 }
 
-static BASE_URL: &str = "https://api.carbonintensity.org.uk/";
+static BASE_URL: &str = "https://api.carbonintensity.org.uk";
 
-/// Current carbon intensity for a postcode
+/// Current carbon intensity for a target (e.g. a region)
 ///
-/// <https://api.carbonintensity.org.uk/regional/postcode/>
-///
-pub async fn get_intensity_postcode(postcode: &str) -> Result<i32, ApiError> {
-    if postcode.len() < 2 || postcode.len() > 4 {
-        return Err(ApiError::Error("Invalid postcode".to_string()));
-    }
+/// Uses either
+/// - <https://api.carbonintensity.org.uk/regional/postcode/>
+/// - <https://api.carbonintensity.org.uk/regional/regionid/>
+pub async fn get_intensity(target: &Target) -> Result<i32, ApiError> {
+    let path = match target {
+        Target::Postcode(postcode) => {
+            if postcode.len() < 2 || postcode.len() > 4 {
+                return Err(ApiError::Error("Invalid postcode".to_string()));
+            }
+            format!("regional/postcode/{postcode}")
+        }
+        &Target::Region(region) => {
+            let region_id = region as u8;
+            format!("regional/regionid/{region_id}")
+        }
+    };
 
-    let path = "regional/postcode/";
-    let url = format!("{BASE_URL}{path}{postcode}");
-    get_intensity(&url).await
-}
-
-/// Current carbon intensity for a region
-///
-/// <https://api.carbonintensity.org.uk/regional/regionid/>
-pub async fn get_intensity_region(region: Region) -> Result<i32, ApiError> {
-    let path = "regional/regionid/";
-    let region_id = region as u8;
-    let url = format!("{BASE_URL}{path}{region_id}");
-    get_intensity(&url).await
+    let url = format!("{BASE_URL}/{path}");
+    get_intensity_for_url(&url).await
 }
 
 fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
@@ -163,68 +162,48 @@ fn normalise_dates(
     Ok(ranges)
 }
 
-/// Return a vector containing the intensity measures
-/// per 30 min window for a given region
-pub async fn get_intensities_region(
-    region: Region,
-    start: &str,
-    end: &Option<&str>,
-) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
-    let path = "regional/intensity/";
-    let region_id = region as u8;
-
-    let ranges = normalise_dates(start, end)?;
-
-    let mut output = Vec::new();
-
-    // TODO query in parallel
-    for r in ranges {
-        // shift dates by one minute
-        let start_date = r.0 + Duration::minutes(1);
-        let end_date = r.1 + Duration::minutes(1);
-
-        let url = format!(
-            "{BASE_URL}{path}{}/{}/regionid/{region_id}",
-            start_date.format("%Y-%m-%dT%H:%MZ"),
-            end_date.format("%Y-%m-%dT%H:%MZ"),
-        );
-        let region_data = get_intensities(&url).await?;
-        let mut tuples = to_tuple(region_data)?;
-        output.append(&mut tuples);
-    }
-    Ok(output)
-}
-
-///  ISO8601 format YYYY-MM-DDThh:mmZ
-/// but tolerates YYYY-MM-DD
-/// https://api.carbonintensity.org.uk/regional/intensity/2023-05-15/2023-05-20/postcode/RG10
+/// Get intensities for a given target (region or postcode) in 30 minutes windows
 ///
-pub async fn get_intensities_postcode(
-    postcode: &str,
+/// Dates are strings in ISO-8601 format YYYY-MM-DDThh:mmZ
+/// but YYYY-MM-DD is tolerated
+///
+/// Uses either
+/// - https://api.carbonintensity.org.uk/regional/intensity/2023-05-15/2023-05-20/postcode/RG10
+/// - https://api.carbonintensity.org.uk/regional/intensity/2023-05-15/2023-05-20/regionid/13
+pub async fn get_intensities(
+    target: &Target,
     start: &str,
     end: &Option<&str>,
 ) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
-    if postcode.len() < 2 || postcode.len() > 4 {
-        return Err(ApiError::Error("Invalid postcode".to_string()));
-    }
+    let path = match target {
+        Target::Postcode(postcode) => {
+            if postcode.len() < 2 || postcode.len() > 4 {
+                return Err(ApiError::Error("Invalid postcode".to_string()));
+            }
+
+            format!("postcode/{postcode}")
+        }
+        &Target::Region(region) => {
+            let region_id = region as u8;
+            format!("regionid/{region_id}")
+        }
+    };
 
     let ranges = normalise_dates(start, end)?;
 
     let mut output = Vec::new();
-    let path = "regional/intensity/";
 
     // TODO query in parallel
-    for r in ranges {
+    for (start_date, end_date) in ranges {
         // shift dates by one minute
-        let start_date = r.0 + Duration::minutes(1);
-        let end_date = r.1 + Duration::minutes(1);
+        let start_date = start_date + Duration::minutes(1);
+        let end_date = end_date + Duration::minutes(1);
+        // format dates
+        let start_date = start_date.format("%Y-%m-%dT%H:%MZ");
+        let end_date = end_date.format("%Y-%m-%dT%H:%MZ");
 
-        let url = format!(
-            "{BASE_URL}{path}{}/{}/postcode/{postcode}",
-            start_date.format("%Y-%m-%dT%H:%MZ"),
-            end_date.format("%Y-%m-%dT%H:%MZ"),
-        );
-        let region_data = get_intensities(&url).await?;
+        let url = format!("{BASE_URL}/regional/intensity/{start_date}/{end_date}/{path}");
+        let region_data = get_intensities_for_url(&url).await?;
         let mut tuples = to_tuple(region_data)?;
         output.append(&mut tuples);
     }
@@ -243,7 +222,7 @@ fn to_tuple(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
     Ok(values)
 }
 
-pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
+async fn get_intensities_for_url(url: &str) -> Result<RegionData, ApiError> {
     let client = Client::new();
     let response = client.get(url).send().await?;
 
@@ -263,7 +242,7 @@ pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
 }
 
 /// Retrieves the intensity value from a structure
-async fn get_intensity(url: &str) -> Result<i32, ApiError> {
+async fn get_intensity_for_url(url: &str) -> Result<i32, ApiError> {
     let result = get_instant_data(url).await?;
 
     let intensity = result
