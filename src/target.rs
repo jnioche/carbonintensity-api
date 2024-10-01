@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use crate::Region;
 
+/// Carbon intensity target, e.g. a postcode or a region
 pub enum Target {
     // NATIONAL,
     Postcode(String),
