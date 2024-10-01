@@ -26,8 +26,8 @@ struct Args {
 
 enum Target {
     // NATIONAL,
-    POSTCODE,
-    REGION,
+    Postcode,
+    Region,
 }
 
 impl FromStr for Target {
@@ -36,8 +36,8 @@ impl FromStr for Target {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             //"" => Ok(Target::NATIONAL),
-            _ if s.parse::<u8>().is_ok() => Ok(Target::REGION),
-            _ => Ok(Target::POSTCODE),
+            _ if s.parse::<u8>().is_ok() => Ok(Target::Region),
+            _ => Ok(Target::Postcode),
         }
     }
 }
@@ -51,15 +51,15 @@ async fn main() {
 
     // look for a range if a date was specified
     if let Some(start_date) = &args.start_date {
-        let end_date: Option<&str> = args.end_date.as_ref().map(|r| &**r);
+        let end_date: Option<&str> = args.end_date.as_deref();
 
         match target {
-            Target::POSTCODE => {
+            Target::Postcode => {
                 let result =
                     get_intensities_postcode(args.value.as_str(), start_date, &end_date).await;
                 handle_results(result);
             }
-            Target::REGION => {
+            Target::Region => {
                 let id: u8 = args.value.parse::<u8>().unwrap();
                 let result = get_intensities_region(id, start_date, &end_date).await;
                 handle_results(result);
@@ -67,12 +67,12 @@ async fn main() {
         }
     } else {
         match target {
-            Target::POSTCODE => {
+            Target::Postcode => {
                 let postcode = args.value.as_str();
                 let result = get_intensity_postcode(postcode).await;
                 handle_result(result, "postcode", postcode);
             }
-            Target::REGION => {
+            Target::Region => {
                 let id: u8 = args.value.parse::<u8>().unwrap();
                 let result = get_intensity_region(id).await;
                 handle_result(result, "region", id.to_string().as_str());
@@ -82,9 +82,9 @@ async fn main() {
 }
 
 fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
-    if result.is_ok() {
-        for t in result.unwrap() {
-            println!("{}, {}", t.0, t.1);
+    if let Ok(results) = result {
+        for (time, value) in results {
+            println!("{}, {}", time, value);
         }
     } else {
         eprintln!("{}", result.unwrap_err());

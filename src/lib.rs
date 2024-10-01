@@ -103,7 +103,7 @@ pub async fn get_intensity_postcode(postcode: &str) -> Result<i32, ApiError> {
 /// <https://api.carbonintensity.org.uk/regional/regionid/>
 ///
 pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
-    if regionid < 1 || regionid > 17 {
+    if !(1..=17).contains(&regionid) {
         return Err(ApiError::Error(
             "Invalid regiondid - should be between 1-17".to_string(),
         ));
@@ -115,9 +115,8 @@ pub async fn get_intensity_region(regionid: u8) -> Result<i32, ApiError> {
 }
 
 fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
-    let sd = NaiveDate::parse_from_str(date, "%Y-%m-%d");
-    if sd.is_ok() {
-        return Ok(sd.unwrap().and_hms_opt(0, 0, 0).unwrap());
+    if let Ok(date) = NaiveDate::parse_from_str(date, "%Y-%m-%d") {
+        return Ok(date.and_hms_opt(0, 0, 0).unwrap());
     }
     // try the longest form or fail
     NaiveDateTime::parse_from_str(date, "%Y-%m-%dT%H:%MZ")
@@ -154,7 +153,7 @@ fn normalise_dates(
     }
 
     // check that the date is not in the future - otherwise set it to now
-    if now.timestamp() < end_date.timestamp() {
+    if now.and_utc().timestamp() < end_date.and_utc().timestamp() {
         end_date = now;
     }
 
@@ -162,7 +161,7 @@ fn normalise_dates(
     let mut ranges = Vec::new();
 
     let duration = Duration::days(13);
-    let mut current = start_date.clone();
+    let mut current = start_date;
     loop {
         let mut next_end = current + duration;
         // break the end of year boundary
@@ -178,7 +177,7 @@ fn normalise_dates(
             ranges.push((current, next_end));
         }
 
-        current = next_end.clone();
+        current = next_end;
     }
     Ok(ranges)
 }
@@ -190,7 +189,7 @@ pub async fn get_intensities_region(
     start: &str,
     end: &Option<&str>,
 ) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
-    if regionid < 1 || regionid > 17 {
+    if !(1..=17).contains(&regionid) {
         return Err(ApiError::Error(
             "Invalid regiondid - should be between 1-17".to_string(),
         ));
@@ -198,7 +197,7 @@ pub async fn get_intensities_region(
 
     let path = "regional/intensity/";
 
-    let ranges = normalise_dates(&start, &end)?;
+    let ranges = normalise_dates(start, end)?;
 
     let mut output = Vec::new();
 
@@ -210,8 +209,8 @@ pub async fn get_intensities_region(
 
         let url = format!(
             "{BASE_URL}{path}{}/{}/regionid/{regionid}",
-            start_date.format("%Y-%m-%dT%H:%MZ").to_string(),
-            end_date.format("%Y-%m-%dT%H:%MZ").to_string()
+            start_date.format("%Y-%m-%dT%H:%MZ"),
+            end_date.format("%Y-%m-%dT%H:%MZ"),
         );
         let region_data = get_intensities(&url).await?;
         let mut tuples = to_tuple(region_data)?;
@@ -233,7 +232,7 @@ pub async fn get_intensities_postcode(
         return Err(ApiError::Error("Invalid postcode".to_string()));
     }
 
-    let ranges = normalise_dates(&start, &end)?;
+    let ranges = normalise_dates(start, end)?;
 
     let mut output = Vec::new();
     let path = "regional/intensity/";
@@ -246,8 +245,8 @@ pub async fn get_intensities_postcode(
 
         let url = format!(
             "{BASE_URL}{path}{}/{}/postcode/{postcode}",
-            start_date.format("%Y-%m-%dT%H:%MZ").to_string(),
-            end_date.format("%Y-%m-%dT%H:%MZ").to_string()
+            start_date.format("%Y-%m-%dT%H:%MZ"),
+            end_date.format("%Y-%m-%dT%H:%MZ"),
         );
         let region_data = get_intensities(&url).await?;
         let mut tuples = to_tuple(region_data)?;
@@ -276,11 +275,10 @@ pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
 
     if status.is_success() {
         let json_str = response.text().await?;
-        let structure: Result<PowerData, serde_json::Error> = serde_json::from_str(&json_str);
-        if structure.is_ok() {
-            Ok(structure.unwrap().data)
+        if let Ok(PowerData { data }) = serde_json::from_str::<PowerData>(&json_str) {
+            Ok(data)
         } else {
-            return Err(ApiError::Error(format!("Invalid JSON returned {json_str}")));
+            Err(ApiError::Error(format!("Invalid JSON returned {json_str}")))
         }
     } else {
         let body = response.text().await?;
@@ -289,9 +287,8 @@ pub async fn get_intensities(url: &str) -> Result<RegionData, ApiError> {
 }
 
 /// Retrieves the intensity value from a structure
-///
 async fn get_intensity(url: &str) -> Result<i32, ApiError> {
-    let result = get_instant_data(url).await.map_err(|err| err)?;
+    let result = get_instant_data(url).await?;
 
     let intensity = result
         .data
@@ -307,7 +304,6 @@ async fn get_intensity(url: &str) -> Result<i32, ApiError> {
 }
 
 // Internal method to handle the querying and parsing
-///
 async fn get_instant_data(url: &str) -> Result<Root, ApiError> {
     let client = Client::new();
     let response = client.get(url).send().await?;
@@ -315,9 +311,8 @@ async fn get_instant_data(url: &str) -> Result<Root, ApiError> {
     let status = response.status();
 
     if status.is_success() {
-        let structure = response.json::<Root>().await;
-        if structure.is_ok() {
-            return Ok(structure.unwrap());
+        if let Ok(root) = response.json::<Root>().await {
+            return Ok(root);
         } else {
             return Err(ApiError::Error("Invalid JSON returned".to_string()));
         }
