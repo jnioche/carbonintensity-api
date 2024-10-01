@@ -8,8 +8,10 @@ use thiserror::Error;
 use url::ParseError;
 
 mod region;
+mod target;
 
 pub use region::Region;
+pub use target::Target;
 
 /// An error communicating with the Carbon Intensity API.
 #[derive(Debug, Error)]

@@ -1,4 +1,4 @@
-use std::{fmt::Display, process, str::FromStr};
+use std::process;
 
 use carbonintensity::{
     get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
@@ -22,28 +22,6 @@ struct Args {
     #[clap()]
     /// numerical value for a region (1-17) or first part of a UK postcode
     pub value: String,
-}
-
-enum Target {
-    // NATIONAL,
-    Postcode(String),
-    Region(Region),
-}
-
-impl FromStr for Target {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        //"" => Ok(Target::NATIONAL)
-
-        // Check if input can be parsed as a Region
-        if let Ok(region) = s.parse::<Region>() {
-            return Ok(Target::Region(region));
-        }
-
-        // Assumes the string was a postcode
-        Ok(Target::Postcode(s.to_string()))
-    }
 }
 
 #[tokio::main]
@@ -92,14 +70,9 @@ fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     }
 }
 
-fn handle_result(result: Result<i32, ApiError>, method: &dyn Display, value: &dyn Display) {
+fn handle_result(result: Result<i32, ApiError>, target: &Target) {
     if result.is_ok() {
-        println!(
-            "Carbon intensity for {} {}: {:?}",
-            method,
-            value,
-            result.unwrap()
-        );
+        println!("Carbon intensity for {}: {:?}", target, result.unwrap());
     } else {
         eprintln!("{}", result.unwrap_err());
         process::exit(1);
