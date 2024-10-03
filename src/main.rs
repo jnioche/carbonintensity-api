@@ -1,9 +1,6 @@
-use std::{fmt::Display, process, str::FromStr};
+use std::process;
 
-use carbonintensity::{
-    get_intensities_postcode, get_intensities_region, get_intensity_postcode, get_intensity_region,
-    ApiError, Region,
-};
+use carbonintensity::{get_intensities, get_intensity, ApiError, Target};
 use chrono::NaiveDateTime;
 use clap::Parser;
 
@@ -24,28 +21,6 @@ struct Args {
     pub value: String,
 }
 
-enum Target {
-    // NATIONAL,
-    Postcode(String),
-    Region(Region),
-}
-
-impl FromStr for Target {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        //"" => Ok(Target::NATIONAL)
-
-        // Check if input can be parsed as a Region
-        if let Ok(region) = s.parse::<Region>() {
-            return Ok(Target::Region(region));
-        }
-
-        // Assumes the string was a postcode
-        Ok(Target::Postcode(s.to_string()))
-    }
-}
-
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
@@ -57,27 +32,11 @@ async fn main() {
     if let Some(start_date) = &args.start_date {
         let end_date: Option<&str> = args.end_date.as_deref();
 
-        match target {
-            Target::Postcode(postcode) => {
-                let result = get_intensities_postcode(&postcode, start_date, &end_date).await;
-                handle_results(result);
-            }
-            Target::Region(region) => {
-                let result = get_intensities_region(region, start_date, &end_date).await;
-                handle_results(result);
-            }
-        }
+        let result = get_intensities(&target, start_date, &end_date).await;
+        handle_results(result);
     } else {
-        match target {
-            Target::Postcode(postcode) => {
-                let result = get_intensity_postcode(&postcode).await;
-                handle_result(result, &"postcode", &postcode);
-            }
-            Target::Region(region) => {
-                let result = get_intensity_region(region).await;
-                handle_result(result, &"region", &region);
-            }
-        }
+        let result = get_intensity(&target).await;
+        handle_result(result, &target);
     }
 }
 
@@ -92,14 +51,9 @@ fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     }
 }
 
-fn handle_result(result: Result<i32, ApiError>, method: &dyn Display, value: &dyn Display) {
+fn handle_result(result: Result<i32, ApiError>, target: &Target) {
     if result.is_ok() {
-        println!(
-            "Carbon intensity for {} {}: {:?}",
-            method,
-            value,
-            result.unwrap()
-        );
+        println!("Carbon intensity for {}: {:?}", target, result.unwrap());
     } else {
         eprintln!("{}", result.unwrap_err());
         process::exit(1);
