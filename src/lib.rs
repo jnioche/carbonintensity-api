@@ -2,6 +2,7 @@
 //! <https://api.carbonintensity.org.uk/>
 
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
+use futures::future;
 use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
@@ -26,6 +27,8 @@ pub enum ApiError {
     UrlParseError(#[from] url::ParseError),
     #[error("Error parsing date: {0}")]
     DateParseError(#[from] chrono::ParseError),
+    #[error("Error executing concurrent task: {0}")]
+    ConcurrentTaskFailedError(#[from] tokio::task::JoinError),
     #[error("Error: {0}")]
     Error(String),
 }
@@ -181,23 +184,36 @@ pub async fn get_intensities(
 
     let ranges = normalise_dates(start, end)?;
 
-    let mut output = Vec::new();
+    // Spawns concurrent tasks...
+    let tasks: Vec<_> = ranges
+        .into_iter()
+        .map(|(start_date, end_date)| {
+            // shift dates by one minute
+            let start_date = start_date + Duration::minutes(1);
+            let end_date = end_date + Duration::minutes(1);
+            // format dates
+            let start_date = start_date.format("%Y-%m-%dT%H:%MZ");
+            let end_date = end_date.format("%Y-%m-%dT%H:%MZ");
 
-    // TODO query in parallel
-    for (start_date, end_date) in ranges {
-        // shift dates by one minute
-        let start_date = start_date + Duration::minutes(1);
-        let end_date = end_date + Duration::minutes(1);
-        // format dates
-        let start_date = start_date.format("%Y-%m-%dT%H:%MZ");
-        let end_date = end_date.format("%Y-%m-%dT%H:%MZ");
+            let url = format!("{BASE_URL}/regional/intensity/{start_date}/{end_date}/{path}");
 
-        let url = format!("{BASE_URL}/regional/intensity/{start_date}/{end_date}/{path}");
-        let region_data = get_intensities_for_url(&url).await?;
-        let mut tuples = to_tuple(region_data)?;
-        output.append(&mut tuples);
-    }
-    Ok(output)
+            tokio::spawn(async move {
+                let region_data = get_intensities_for_url(&url).await?;
+                to_tuples(region_data)
+            })
+        })
+        .collect();
+    // ...unwraps the results (Vec<Result>) or return an error
+    let task_results: Vec<Result<Vec<IntensityForDate>>> = future::try_join_all(tasks).await?;
+
+    // ...converts the Vec<Result> into Result<Vec>
+    let requests_result: Result<Vec<Vec<IntensityForDate>>> = task_results.into_iter().collect();
+    // ...converts the Result<Vec> into Vec<> or returns the first error
+    let requests_results: Vec<Vec<IntensityForDate>> = requests_result?;
+    // ...flattens the Vecs of Vecs into a Vec of intensities
+    let results: Vec<IntensityForDate> = requests_results.into_iter().flatten().collect();
+
+    Ok(results)
 }
 
 /// converts the values from JSON into a simpler
