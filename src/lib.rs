@@ -110,33 +110,23 @@ fn normalise_dates(
     start: &str,
     end: &Option<&str>,
 ) -> Result<Vec<(NaiveDateTime, NaiveDateTime)>, ApiError> {
-    let start_date: NaiveDateTime = match parse(start) {
-        Ok(res) => res,
-        Err(_err) => return Err(ApiError::Error("Invalid start date".to_string() + start)),
-    };
+    let start_date = parse(start)?;
 
     let now = Local::now().naive_local();
 
     // if the end is not set - use now
-    let mut end_date: NaiveDateTime;
-    if end.is_none() {
-        end_date = now;
-    } else {
-        // a date exists
-        let sd = parse(end.unwrap());
-        if sd.is_err() {
-            return Err(ApiError::Error(
-                "Invalid end date ".to_string() + end.unwrap(),
-            ));
-        } else {
-            end_date = sd.unwrap();
+    let end_date = match end {
+        None => now,
+        Some(end_date) => {
+            let end_date = parse(end_date)?;
+            // check that the date is not in the future - otherwise set it to now
+            if now.and_utc().timestamp() < end_date.and_utc().timestamp() {
+                now
+            } else {
+                end_date
+            }
         }
-    }
-
-    // check that the date is not in the future - otherwise set it to now
-    if now.and_utc().timestamp() < end_date.and_utc().timestamp() {
-        end_date = now;
-    }
+    };
 
     //  split into ranges
     let mut ranges = Vec::new();
