@@ -95,7 +95,7 @@ pub async fn get_intensity(target: &Target) -> Result<i32, ApiError> {
     get_intensity_for_url(&url).await
 }
 
-fn parse(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
+fn parse_date(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
     if let Ok(date) = NaiveDate::parse_from_str(date, "%Y-%m-%d") {
         return Ok(date.and_hms_opt(0, 0, 0).unwrap());
     }
@@ -110,7 +110,7 @@ fn normalise_dates(
     start: &str,
     end: &Option<&str>,
 ) -> Result<Vec<(NaiveDateTime, NaiveDateTime)>, ApiError> {
-    let start_date = parse(start)?;
+    let start_date = parse_date(start)?;
 
     let now = Local::now().naive_local();
 
@@ -118,7 +118,7 @@ fn normalise_dates(
     let end_date = match end {
         None => now,
         Some(end_date) => {
-            let end_date = parse(end_date)?;
+            let end_date = parse_date(end_date)?;
             // check that the date is not in the future - otherwise set it to now
             if now.and_utc().timestamp() < end_date.and_utc().timestamp() {
                 now
@@ -204,7 +204,7 @@ pub async fn get_intensities(
 fn to_tuple(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
     let mut values: Vec<(NaiveDateTime, i32)> = Vec::new();
     for d in data.data {
-        let start_date = parse(&d.from)?;
+        let start_date = parse_date(&d.from)?;
         let intensity = d.intensity.forecast;
         values.push((start_date, intensity));
     }
