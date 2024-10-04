@@ -32,6 +32,8 @@ pub enum ApiError {
 
 pub type Result<T> = std::result::Result<T, ApiError>;
 
+pub type IntensityForDate = (NaiveDateTime, i32);
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GenerationMix {
     fuel: String,
@@ -200,8 +202,8 @@ pub async fn get_intensities(
 
 /// converts the values from JSON into a simpler
 /// representation Vec<DateTime, float>
-fn to_tuples(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>> {
-    let mut values: Vec<(NaiveDateTime, i32)> = Vec::new();
+fn to_tuples(data: RegionData) -> Result<Vec<IntensityForDate>> {
+    let mut values: Vec<IntensityForDate> = Vec::new();
     for d in data.data {
         let start_date = parse_date(&d.from)?;
         let intensity = d.intensity.forecast;
