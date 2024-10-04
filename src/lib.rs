@@ -30,6 +30,8 @@ pub enum ApiError {
     Error(String),
 }
 
+pub type Result<T> = std::result::Result<T, ApiError>;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GenerationMix {
     fuel: String,
@@ -77,7 +79,7 @@ static BASE_URL: &str = "https://api.carbonintensity.org.uk";
 /// Uses either
 /// - <https://api.carbonintensity.org.uk/regional/postcode/>
 /// - <https://api.carbonintensity.org.uk/regional/regionid/>
-pub async fn get_intensity(target: &Target) -> Result<i32, ApiError> {
+pub async fn get_intensity(target: &Target) -> Result<i32> {
     let path = match target {
         Target::Postcode(postcode) => {
             if postcode.len() < 2 || postcode.len() > 4 {
@@ -95,7 +97,7 @@ pub async fn get_intensity(target: &Target) -> Result<i32, ApiError> {
     get_intensity_for_url(&url).await
 }
 
-fn parse_date(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
+fn parse_date(date: &str) -> std::result::Result<NaiveDateTime, chrono::ParseError> {
     if let Ok(date) = NaiveDate::parse_from_str(date, "%Y-%m-%d") {
         return Ok(date.and_hms_opt(0, 0, 0).unwrap());
     }
@@ -106,10 +108,7 @@ fn parse_date(date: &str) -> Result<NaiveDateTime, chrono::ParseError> {
 /// Normalises the start and end dates
 /// returns ranges that are acceptable by the API
 /// both in their duration and string representation
-fn normalise_dates(
-    start: &str,
-    end: &Option<&str>,
-) -> Result<Vec<(NaiveDateTime, NaiveDateTime)>, ApiError> {
+fn normalise_dates(start: &str, end: &Option<&str>) -> Result<Vec<(NaiveDateTime, NaiveDateTime)>> {
     let start_date = parse_date(start)?;
 
     let now = Local::now().naive_local();
@@ -163,7 +162,7 @@ pub async fn get_intensities(
     target: &Target,
     start: &str,
     end: &Option<&str>,
-) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
+) -> Result<Vec<IntensityForDate>> {
     let path = match target {
         Target::Postcode(postcode) => {
             if postcode.len() < 2 || postcode.len() > 4 {
@@ -201,7 +200,7 @@ pub async fn get_intensities(
 
 /// converts the values from JSON into a simpler
 /// representation Vec<DateTime, float>
-fn to_tuple(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
+fn to_tuples(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>> {
     let mut values: Vec<(NaiveDateTime, i32)> = Vec::new();
     for d in data.data {
         let start_date = parse_date(&d.from)?;
@@ -211,7 +210,7 @@ fn to_tuple(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
     Ok(values)
 }
 
-async fn get_intensities_for_url(url: &str) -> Result<RegionData, ApiError> {
+async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
     let client = Client::new();
     let response = client.get(url).send().await?;
 
@@ -231,7 +230,7 @@ async fn get_intensities_for_url(url: &str) -> Result<RegionData, ApiError> {
 }
 
 /// Retrieves the intensity value from a structure
-async fn get_intensity_for_url(url: &str) -> Result<i32, ApiError> {
+async fn get_intensity_for_url(url: &str) -> Result<i32> {
     let result = get_instant_data(url).await?;
 
     let intensity = result
@@ -248,7 +247,7 @@ async fn get_intensity_for_url(url: &str) -> Result<i32, ApiError> {
 }
 
 // Internal method to handle the querying and parsing
-async fn get_instant_data(url: &str) -> Result<Root, ApiError> {
+async fn get_instant_data(url: &str) -> Result<Root> {
     let client = Client::new();
     let response = client.get(url).send().await?;
 
@@ -277,7 +276,8 @@ mod tests {
         {"data":{"regionid":11,"shortname":"South West England","postcode":"BS7","data":[{"from":"2022-12-31T23:30Z","to":"2023-01-01T00:00Z","intensity":{"forecast":152,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.4},{"fuel":"coal","perc":3.3},{"fuel":"imports","perc":14.3},{"fuel":"gas","perc":28.5},{"fuel":"nuclear","perc":7},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.5},{"fuel":"solar","perc":0},{"fuel":"wind","perc":45.1}]},{"from":"2023-01-01T00:00Z","to":"2023-01-01T00:30Z","intensity":{"forecast":181,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.4},{"fuel":"coal","perc":3.4},{"fuel":"imports","perc":9.1},{"fuel":"gas","perc":36.1},{"fuel":"nuclear","perc":6.8},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":42.8}]},{"from":"2023-01-01T00:30Z","to":"2023-01-01T01:00Z","intensity":{"forecast":189,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.3},{"fuel":"coal","perc":3.4},{"fuel":"imports","perc":12.1},{"fuel":"gas","perc":37.6},{"fuel":"nuclear","perc":6.4},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":38.8}]},{"from":"2023-01-01T01:00Z","to":"2023-01-01T01:30Z","intensity":{"forecast":183,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.7},{"fuel":"coal","perc":3.2},{"fuel":"imports","perc":6.1},{"fuel":"gas","perc":37.3},{"fuel":"nuclear","perc":7.3},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":44}]},{"from":"2023-01-01T01:30Z","to":"2023-01-01T02:00Z","intensity":{"forecast":175,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.5},{"fuel":"coal","perc":2.9},{"fuel":"imports","perc":6.6},{"fuel":"gas","perc":36},{"fuel":"nuclear","perc":7.2},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":45.5}]}]}}
     "#;
 
-        let result: Result<PowerData, serde_json::Error> = serde_json::from_str(json_str);
+        let result: std::result::Result<PowerData, serde_json::Error> =
+            serde_json::from_str(json_str);
         println!("{:?}", result);
     }
 
