@@ -3,7 +3,7 @@
 
 use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 
 mod region;
@@ -211,22 +211,8 @@ fn to_tuples(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>> {
 }
 
 async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
-    let client = Client::new();
-    let response = client.get(url).send().await?;
-
-    let status = response.status();
-
-    if status.is_success() {
-        let json_str = response.text().await?;
-        if let Ok(PowerData { data }) = serde_json::from_str::<PowerData>(&json_str) {
-            Ok(data)
-        } else {
-            Err(ApiError::Error(format!("Invalid JSON returned {json_str}")))
-        }
-    } else {
-        let body = response.text().await?;
-        Err(ApiError::RestError { status, body })
-    }
+    let PowerData { data } = get_response(url).await?;
+    Ok(data)
 }
 
 /// Retrieves the intensity value from a structure
@@ -248,21 +234,29 @@ async fn get_intensity_for_url(url: &str) -> Result<i32> {
 
 // Internal method to handle the querying and parsing
 async fn get_instant_data(url: &str) -> Result<Root> {
+    get_response::<Root>(url).await
+}
+
+/// Makes a GET request to the given URL
+///
+/// Deserialize the JSON response as `T` and returns Ok<T> if all is well.
+/// Returns an `ApiError` when the HTTP request failed or the response body
+/// couldn't be deserialized as a `T` value.
+async fn get_response<T>(url: &str) -> Result<T>
+where
+    T: DeserializeOwned,
+{
     let client = Client::new();
     let response = client.get(url).send().await?;
 
     let status = response.status();
-
-    if status.is_success() {
-        if let Ok(root) = response.json::<Root>().await {
-            return Ok(root);
-        } else {
-            return Err(ApiError::Error("Invalid JSON returned".to_string()));
-        }
+    if !status.is_success() {
+        let body = response.text().await?;
+        return Err(ApiError::RestError { status, body });
     }
-    // failure
-    let body = response.text().await?;
-    Err(ApiError::RestError { status, body })
+
+    let target = response.json::<T>().await?;
+    Ok(target)
 }
 
 #[cfg(test)]
