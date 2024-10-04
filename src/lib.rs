@@ -5,7 +5,6 @@ use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use url::ParseError;
 
 mod region;
 mod target;
@@ -24,7 +23,9 @@ pub enum ApiError {
     RestError { status: StatusCode, body: String },
     /// There was an error parsing a URL from a string.
     #[error("Error parsing URL: {0}")]
-    UrlParseError(#[from] ParseError),
+    UrlParseError(#[from] url::ParseError),
+    #[error("Error parsing date: {0}")]
+    DateParseError(#[from] chrono::ParseError),
     #[error("Error: {0}")]
     Error(String),
 }
@@ -215,7 +216,7 @@ pub async fn get_intensities(
 fn to_tuple(data: RegionData) -> Result<Vec<(NaiveDateTime, i32)>, ApiError> {
     let mut values: Vec<(NaiveDateTime, i32)> = Vec::new();
     for d in data.data {
-        let start_date = parse(&d.from).expect("Unparsable date");
+        let start_date = parse(&d.from)?;
         let intensity = d.intensity.forecast;
         values.push((start_date, intensity));
     }
