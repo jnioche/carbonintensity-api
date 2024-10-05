@@ -324,11 +324,7 @@ mod tests {
             Data::test_data("2024-03-01", "2024-04-01", 250),
         ];
         let result = to_tuples(data);
-        assert!(result.is_err());
-        match result.err().unwrap() {
-            ApiError::DateParseError(_err) => {} // success,
-            err => panic!("Expected a ApiError::DateParseError, got {:?}", err),
-        };
+        assert!(matches!(result, Err(ApiError::DateParseError(_))));
 
         // Happy path
         let data = vec![
