@@ -277,7 +277,87 @@ where
 #[cfg(test)]
 mod tests {
 
+    use std::str::FromStr;
+
     use super::*;
+
+    impl RegionData {
+        fn test_data(region: Region, data: Vec<Data>) -> Self {
+            Self {
+                regionid: region as i32,
+                shortname: region.to_string(),
+                postcode: Some("BS7".to_string()),
+                dnoregion: None,
+                data: data,
+            }
+        }
+    }
+
+    impl Data {
+        fn test_data(from: &str, to: &str, intensity: i32) -> Self {
+            Self {
+                from: from.to_string(),
+                to: to.to_string(),
+                intensity: Intensity {
+                    forecast: intensity,
+                    index: "very high".to_string(),
+                },
+                generationmix: vec![
+                    GenerationMix {
+                        fuel: "gas".to_string(),
+                        perc: 80.0,
+                    },
+                    GenerationMix {
+                        fuel: "wind".to_string(),
+                        perc: 10.0,
+                    },
+                    GenerationMix {
+                        fuel: "other".to_string(),
+                        perc: 10.0,
+                    },
+                ],
+            }
+        }
+    }
+
+    /// Returns a NaiveDateTime from a string slice. Assumes input is valid
+    fn test_date_time(date: &str) -> NaiveDateTime {
+        NaiveDate::from_str(date)
+            .unwrap()
+            .and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+    }
+
+    #[test]
+    fn to_tuples_test() {
+        // One of the dates is invalid
+        let data = vec![
+            Data::test_data("2024-01-01", "2024-02-01", 350),
+            Data::test_data("Invalid", "2024-03-01", 300),
+            Data::test_data("2024-03-01", "2024-04-01", 250),
+        ];
+        let region_data = RegionData::test_data(Region::SouthWestEngland, data);
+        let result = to_tuples(region_data);
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            ApiError::DateParseError(_err) => {} // success,
+            err => panic!("Expected a ApiError::DateParseError, got {:?}", err),
+        };
+
+        // Happy path
+        let data = vec![
+            Data::test_data("2024-01-01", "2024-02-01", 350),
+            Data::test_data("2024-02-01", "2024-03-01", 300),
+        ];
+        let region_data = RegionData::test_data(Region::SouthWestEngland, data);
+        let result = to_tuples(region_data);
+
+        let jan = test_date_time("2024-01-01");
+        let feb = test_date_time("2024-02-01");
+        let expected = vec![(jan, 350), (feb, 300)];
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected);
+    }
 
     #[test]
     fn it_works() {
