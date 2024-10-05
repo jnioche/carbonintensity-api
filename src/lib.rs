@@ -201,7 +201,7 @@ pub async fn get_intensities(
 
             tokio::spawn(async move {
                 let region_data = get_intensities_for_url(&url).await?;
-                to_tuples(region_data)
+                to_tuples(region_data.data)
             })
         })
         .collect();
@@ -215,9 +215,8 @@ pub async fn get_intensities(
 
 /// converts the values from JSON into a simpler
 /// representation Vec<DateTime, float>
-fn to_tuples(data: RegionData) -> Result<Vec<IntensityForDate>> {
-    data.data
-        .into_iter()
+fn to_tuples(data: Vec<Data>) -> Result<Vec<IntensityForDate>> {
+    data.into_iter()
         .map(|datum| {
             let start_date = parse_date(&datum.from)?;
             let intensity = datum.intensity.forecast;
@@ -282,18 +281,6 @@ mod tests {
 
     use super::*;
 
-    impl RegionData {
-        fn test_data(region: Region, data: Vec<Data>) -> Self {
-            Self {
-                regionid: region as i32,
-                shortname: region.to_string(),
-                postcode: Some("BS7".to_string()),
-                dnoregion: None,
-                data: data,
-            }
-        }
-    }
-
     impl Data {
         fn test_data(from: &str, to: &str, intensity: i32) -> Self {
             Self {
@@ -336,8 +323,7 @@ mod tests {
             Data::test_data("Invalid", "2024-03-01", 300),
             Data::test_data("2024-03-01", "2024-04-01", 250),
         ];
-        let region_data = RegionData::test_data(Region::SouthWestEngland, data);
-        let result = to_tuples(region_data);
+        let result = to_tuples(data);
         assert!(result.is_err());
         match result.err().unwrap() {
             ApiError::DateParseError(_err) => {} // success,
@@ -349,8 +335,7 @@ mod tests {
             Data::test_data("2024-01-01", "2024-02-01", 350),
             Data::test_data("2024-02-01", "2024-03-01", 300),
         ];
-        let region_data = RegionData::test_data(Region::SouthWestEngland, data);
-        let result = to_tuples(region_data);
+        let result = to_tuples(data);
 
         let jan = test_date_time("2024-01-01");
         let feb = test_date_time("2024-02-01");
