@@ -352,8 +352,24 @@ mod tests {
     }
 
     #[test]
-    fn range_splitting() {
-        let periods = normalise_dates("2022-12-01", &Option::Some("2023-02-01"));
-        println!("{:?}", periods);
+    fn normalise_dates_test() {
+        // Invalid start date
+        let result = normalise_dates("not a date", &None);
+        assert!(matches!(result, Err(ApiError::DateParseError(_))));
+
+        // Invalid end date
+        let result = normalise_dates("2024-01-01", &Some("not a date"));
+        assert!(matches!(result, Err(ApiError::DateParseError(_))));
+
+        // Ranges splitting logic
+        let result = normalise_dates("2022-12-01", &Some("2023-01-01"));
+        assert!(result.is_ok());
+        let ranges = result.unwrap();
+        let expected = vec![
+            (test_date_time("2022-12-01"), test_date_time("2022-12-14")),
+            (test_date_time("2022-12-14"), test_date_time("2022-12-27")),
+            (test_date_time("2022-12-27"), test_date_time("2023-01-01")),
+        ];
+        assert_eq!(ranges, expected);
     }
 }
