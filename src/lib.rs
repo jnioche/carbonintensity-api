@@ -145,9 +145,11 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<Vec<(NaiveDateTime
         if next_end >= new_year {
             next_end = new_year;
         }
-        ranges.push((current, end_date));
         if next_end >= end_date {
+            ranges.push((current, end_date));
             break;
+        } else {
+            ranges.push((current, next_end));
         }
 
         current = next_end;
