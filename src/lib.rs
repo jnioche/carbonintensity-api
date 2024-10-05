@@ -203,17 +203,12 @@ pub async fn get_intensities(
             })
         })
         .collect();
-    // ...unwraps the results (Vec<Result>) or return an error
-    let task_results: Vec<Result<Vec<IntensityForDate>>> = future::try_join_all(tasks).await?;
 
-    // ...converts the Vec<Result> into Result<Vec>
-    let requests_result: Result<Vec<Vec<IntensityForDate>>> = task_results.into_iter().collect();
-    // ...converts the Result<Vec> into Vec<> or returns the first error
-    let requests_results: Vec<Vec<IntensityForDate>> = requests_result?;
-    // ...flattens the Vecs of Vecs into a Vec of intensities
-    let results: Vec<IntensityForDate> = requests_results.into_iter().flatten().collect();
-
-    Ok(results)
+    let tasks_results = future::try_join_all(tasks).await?;
+    tasks_results
+        .into_iter()
+        .collect::<Result<Vec<_>>>() // convert to single Result
+        .map(|nested_tuples| nested_tuples.into_iter().flatten().collect())
 }
 
 /// converts the values from JSON into a simpler
