@@ -216,13 +216,14 @@ pub async fn get_intensities(
 /// converts the values from JSON into a simpler
 /// representation Vec<DateTime, float>
 fn to_tuples(data: RegionData) -> Result<Vec<IntensityForDate>> {
-    let mut values: Vec<IntensityForDate> = Vec::new();
-    for d in data.data {
-        let start_date = parse_date(&d.from)?;
-        let intensity = d.intensity.forecast;
-        values.push((start_date, intensity));
-    }
-    Ok(values)
+    data.data
+        .into_iter()
+        .map(|datum| {
+            let start_date = parse_date(&datum.from)?;
+            let intensity = datum.intensity.forecast;
+            Ok((start_date, intensity))
+        })
+        .collect()
 }
 
 async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
