@@ -385,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn normalise_dates_test() {
+    fn normalise_dates_invalid() {
         // Invalid start date
         let result = normalise_dates("not a date", &None);
         assert!(matches!(result, Err(ApiError::DateParseError(_))));
@@ -393,7 +393,10 @@ mod tests {
         // Invalid end date
         let result = normalise_dates("2024-01-01", &Some("not a date"));
         assert!(matches!(result, Err(ApiError::DateParseError(_))));
+    }
 
+    #[test]
+    fn normalise_dates_splitting() {
         // Ranges splitting logic
         let result = normalise_dates("2022-12-01", &Some("2023-01-01"));
         assert!(result.is_ok());
