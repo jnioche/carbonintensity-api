@@ -7,9 +7,6 @@ use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 
-// TODO: Testing clippy in CI - remove
-const UNUSED: u8 = 42;
-
 mod region;
 mod target;
 
