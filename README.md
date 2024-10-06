@@ -12,7 +12,7 @@ Please read the API's [terms of use](https://github.com/carbon-intensity/terms).
 An executable is provided to try the library. With Rust and Cargo installed
 
 ```
-cargo install --path .
+cargo install --locked --path .
 ```
 
 then
