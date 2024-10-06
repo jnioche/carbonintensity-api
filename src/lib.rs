@@ -35,8 +35,6 @@ pub enum ApiError {
     /// There was an error parsing a URL from a string.
     #[error("Error parsing URL: {0}")]
     UrlParseError(#[from] url::ParseError),
-    #[error("Dates must be after 2018-05-10")]
-    DateTooOld,
     #[error("Error parsing date: {0}")]
     DateParseError(#[from] chrono::ParseError),
     #[error("Error executing concurrent task: {0}")]
@@ -232,27 +230,27 @@ fn to_tuples(data: Vec<Data>) -> Result<Vec<IntensityForDate>> {
         .collect()
 }
 
-/// Returns a valid `Ok(date)` or an error
+/// Returns a date within a valid date
 ///
-/// Datetimes older than 2018-05-10 23:30:00 are invalid, an
-/// `Err(ApiError::DateTooOld)` is returned in this case.
+/// Datetimes older than 2018-05-10 23:30:00 are invalid.
+/// Also, datetimes in the future are invalid.
 ///
-/// If the datetime is the future `Ok(now)` is returned instead
-///
-/// Otherwise an `Ok` value with the input datetime is returned
-fn validate_date(date: NaiveDateTime) -> Result<NaiveDateTime> {
+/// - if a datetime is too old, returns the oldest valid date
+/// - if a datetime is in the future, returns now
+/// - otherwise returns the input datetime
+fn validate_date(date: NaiveDateTime) -> NaiveDateTime {
+    let now = Local::now().naive_local();
+
     // check if date is too old
     if date < *OLDEST_VALID_DATE {
-        return Err(ApiError::DateTooOld);
+        return *OLDEST_VALID_DATE;
+    }
+    // check that the date is not in the future
+    if date > now {
+        return now;
     }
 
-    // check that the date is not in the future - otherwise set it to now
-    let now = Local::now().naive_local();
-    if date > now {
-        Ok(now)
-    } else {
-        Ok(date)
-    }
+    date
 }
 
 async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
@@ -438,9 +436,7 @@ mod tests {
     fn validate_date_test() {
         // valid dates just returned as-is
         let just_a_day = test_date_time("2024-07-30");
-        let result = validate_date(just_a_day);
-        assert!(result.is_ok());
-        let datetime = result.unwrap();
+        let datetime = validate_date(just_a_day);
         assert_eq!(datetime.trunc_subsecs(0), just_a_day.trunc_subsecs(0));
 
         // future dates turns into now
@@ -448,9 +444,7 @@ mod tests {
             .naive_local()
             .checked_add_months(Months::new(2))
             .unwrap();
-        let result = validate_date(future);
-        assert!(result.is_ok());
-        let datetime = result.unwrap();
+        let datetime = validate_date(future);
         let now = Local::now().naive_local();
         assert_eq!(datetime.trunc_subsecs(0), now.trunc_subsecs(0));
 
@@ -459,14 +453,12 @@ mod tests {
             .unwrap()
             .and_hms_opt(23, 30, 0)
             .unwrap();
-        let result = validate_date(oldest_date);
-        assert!(result.is_ok());
-        let datetime = result.unwrap();
+        let datetime = validate_date(oldest_date);
         assert_eq!(datetime.trunc_subsecs(0), oldest_date.trunc_subsecs(0));
 
-        // just too old
+        // just too old - turn into the oldest valid date
         let old = test_date_time("1980-12-31");
-        let result = validate_date(old);
-        assert!(matches!(result, Err(ApiError::DateTooOld)));
+        let datetime = validate_date(old);
+        assert_eq!(datetime, oldest_date);
     }
 }
