@@ -201,7 +201,7 @@ pub async fn get_intensities(
 
             tokio::spawn(async move {
                 let region_data = get_intensities_for_url(&url).await?;
-                to_tuples(region_data)
+                to_tuples(region_data.data)
             })
         })
         .collect();
@@ -215,14 +215,14 @@ pub async fn get_intensities(
 
 /// converts the values from JSON into a simpler
 /// representation Vec<DateTime, float>
-fn to_tuples(data: RegionData) -> Result<Vec<IntensityForDate>> {
-    let mut values: Vec<IntensityForDate> = Vec::new();
-    for d in data.data {
-        let start_date = parse_date(&d.from)?;
-        let intensity = d.intensity.forecast;
-        values.push((start_date, intensity));
-    }
-    Ok(values)
+fn to_tuples(data: Vec<Data>) -> Result<Vec<IntensityForDate>> {
+    data.into_iter()
+        .map(|datum| {
+            let start_date = parse_date(&datum.from)?;
+            let intensity = datum.intensity.forecast;
+            Ok((start_date, intensity))
+        })
+        .collect()
 }
 
 async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
@@ -254,9 +254,9 @@ async fn get_instant_data(url: &str) -> Result<Root> {
 
 /// Makes a GET request to the given URL
 ///
-/// Deserialize the JSON response as `T` and returns Ok<T> if all is well.
+/// Deserialise the JSON response as `T` and returns Ok<T> if all is well.
 /// Returns an `ApiError` when the HTTP request failed or the response body
-/// couldn't be deserialized as a `T` value.
+/// couldn't be deserialised as a `T` value.
 async fn get_response<T>(url: &str) -> Result<T>
 where
     T: DeserializeOwned,
@@ -277,22 +277,99 @@ where
 #[cfg(test)]
 mod tests {
 
+    use std::str::FromStr;
+
     use super::*;
 
+    impl Data {
+        fn test_data(from: &str, to: &str, intensity: i32) -> Self {
+            Self {
+                from: from.to_string(),
+                to: to.to_string(),
+                intensity: Intensity {
+                    forecast: intensity,
+                    index: "very high".to_string(),
+                },
+                generationmix: vec![
+                    GenerationMix {
+                        fuel: "gas".to_string(),
+                        perc: 80.0,
+                    },
+                    GenerationMix {
+                        fuel: "wind".to_string(),
+                        perc: 10.0,
+                    },
+                    GenerationMix {
+                        fuel: "other".to_string(),
+                        perc: 10.0,
+                    },
+                ],
+            }
+        }
+    }
+
+    /// Returns a NaiveDateTime from a string slice. Assumes input is valid
+    fn test_date_time(date: &str) -> NaiveDateTime {
+        NaiveDate::from_str(date)
+            .unwrap()
+            .and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
+    }
+
     #[test]
-    fn it_works() {
+    fn to_tuples_test() {
+        // One of the dates is invalid
+        let data = vec![
+            Data::test_data("2024-01-01", "2024-02-01", 350),
+            Data::test_data("Invalid", "2024-03-01", 300),
+            Data::test_data("2024-03-01", "2024-04-01", 250),
+        ];
+        let result = to_tuples(data);
+        assert!(matches!(result, Err(ApiError::DateParseError(_))));
+
+        // Happy path
+        let data = vec![
+            Data::test_data("2024-01-01", "2024-02-01", 350),
+            Data::test_data("2024-02-01", "2024-03-01", 300),
+        ];
+        let result = to_tuples(data);
+
+        let jan = test_date_time("2024-01-01");
+        let feb = test_date_time("2024-02-01");
+        let expected = vec![(jan, 350), (feb, 300)];
+
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected);
+    }
+
+    #[test]
+    fn deserialise_power_data_test() {
         let json_str = r#"
         {"data":{"regionid":11,"shortname":"South West England","postcode":"BS7","data":[{"from":"2022-12-31T23:30Z","to":"2023-01-01T00:00Z","intensity":{"forecast":152,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.4},{"fuel":"coal","perc":3.3},{"fuel":"imports","perc":14.3},{"fuel":"gas","perc":28.5},{"fuel":"nuclear","perc":7},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.5},{"fuel":"solar","perc":0},{"fuel":"wind","perc":45.1}]},{"from":"2023-01-01T00:00Z","to":"2023-01-01T00:30Z","intensity":{"forecast":181,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.4},{"fuel":"coal","perc":3.4},{"fuel":"imports","perc":9.1},{"fuel":"gas","perc":36.1},{"fuel":"nuclear","perc":6.8},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":42.8}]},{"from":"2023-01-01T00:30Z","to":"2023-01-01T01:00Z","intensity":{"forecast":189,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.3},{"fuel":"coal","perc":3.4},{"fuel":"imports","perc":12.1},{"fuel":"gas","perc":37.6},{"fuel":"nuclear","perc":6.4},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":38.8}]},{"from":"2023-01-01T01:00Z","to":"2023-01-01T01:30Z","intensity":{"forecast":183,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.7},{"fuel":"coal","perc":3.2},{"fuel":"imports","perc":6.1},{"fuel":"gas","perc":37.3},{"fuel":"nuclear","perc":7.3},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":44}]},{"from":"2023-01-01T01:30Z","to":"2023-01-01T02:00Z","intensity":{"forecast":175,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.5},{"fuel":"coal","perc":2.9},{"fuel":"imports","perc":6.6},{"fuel":"gas","perc":36},{"fuel":"nuclear","perc":7.2},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":45.5}]}]}}
     "#;
 
-        let result: std::result::Result<PowerData, serde_json::Error> =
+        let _result: std::result::Result<PowerData, serde_json::Error> =
             serde_json::from_str(json_str);
-        println!("{:?}", result);
     }
 
     #[test]
-    fn range_splitting() {
-        let periods = normalise_dates("2022-12-01", &Option::Some("2023-02-01"));
-        println!("{:?}", periods);
+    fn normalise_dates_test() {
+        // Invalid start date
+        let result = normalise_dates("not a date", &None);
+        assert!(matches!(result, Err(ApiError::DateParseError(_))));
+
+        // Invalid end date
+        let result = normalise_dates("2024-01-01", &Some("not a date"));
+        assert!(matches!(result, Err(ApiError::DateParseError(_))));
+
+        // Ranges splitting logic
+        let result = normalise_dates("2022-12-01", &Some("2023-01-01"));
+        assert!(result.is_ok());
+        let ranges = result.unwrap();
+        let expected = vec![
+            (test_date_time("2022-12-01"), test_date_time("2022-12-14")),
+            (test_date_time("2022-12-14"), test_date_time("2022-12-27")),
+            (test_date_time("2022-12-27"), test_date_time("2023-01-01")),
+        ];
+        assert_eq!(ranges, expected);
     }
 }
