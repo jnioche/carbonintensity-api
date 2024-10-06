@@ -393,6 +393,10 @@ mod tests {
         // Invalid end date
         let result = normalise_dates("2024-01-01", &Some("not a date"));
         assert!(matches!(result, Err(ApiError::DateParseError(_))));
+
+        // Start date too old
+        let result = normalise_dates("2001-01-01", &None);
+        assert!(matches!(result, Err(ApiError::DateTooOld)));
     }
 
     #[test]
