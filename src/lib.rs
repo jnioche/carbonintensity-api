@@ -134,8 +134,8 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<Vec<(NaiveDateTime
         Some(end_date) => parse_date(end_date)?,
     };
 
-    let start_date = validate_date(start_date)?;
-    let end_date = validate_date(end_date)?;
+    let start_date = validate_date(start_date);
+    let end_date = validate_date(end_date);
 
     //  split into ranges
     let mut ranges = Vec::new();
@@ -390,10 +390,24 @@ mod tests {
         // Invalid end date
         let result = normalise_dates("2024-01-01", &Some("not a date"));
         assert!(matches!(result, Err(ApiError::DateParseError(_))));
+    }
+
+    #[test]
+    fn normalise_dates_too_old() {
+        let oldest_valid_date = NaiveDate::from_ymd_opt(2018, 5, 10)
+            .unwrap()
+            .and_hms_opt(23, 30, 0)
+            .unwrap();
 
         // Start date too old
-        let result = normalise_dates("2001-01-01", &None);
-        assert!(matches!(result, Err(ApiError::DateTooOld)));
+        let result = normalise_dates("1111-01-01", &Some("2018-05-15"));
+        assert!(result.is_ok());
+
+        let ranges = result.unwrap();
+        assert_eq!(ranges.len(), 1);
+
+        let expected = vec![(oldest_valid_date, test_date_time("2018-05-15"))];
+        assert_eq!(ranges, expected);
     }
 
     #[test]
