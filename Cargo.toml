@@ -2,6 +2,7 @@
 name = "carbonintensity-api"
 version = "0.3.0"
 edition = "2021"
+rust-version = "1.80"
 authors = ["Julien Nioche <jnioche@gmail.com>"]
 description = "Provides a client for the UK National Grid Carbon Intensity API"
 repository = "https://github.com/jnioche/carbonintensity-api"
