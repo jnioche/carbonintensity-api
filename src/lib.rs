@@ -1,8 +1,10 @@
 //! API for retrieving data from the Carbon Intensity API
 //! <https://api.carbonintensity.org.uk/>
 
-use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use futures::future;
+use std::sync::LazyLock;
+
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
@@ -12,6 +14,14 @@ mod target;
 
 pub use region::Region;
 pub use target::Target;
+
+// oldest entry available for 2018-05-10 23:30:00
+static OLDEST_VALID_DATE: LazyLock<NaiveDateTime> = LazyLock::new(|| {
+    NaiveDate::from_ymd_opt(2018, 5, 10)
+        .unwrap()
+        .and_hms_opt(23, 30, 0)
+        .unwrap()
+});
 
 /// An error communicating with the Carbon Intensity API.
 #[derive(Debug, Error)]
@@ -121,16 +131,11 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<Vec<(NaiveDateTime
     // if the end is not set - use now
     let end_date = match end {
         None => now,
-        Some(end_date) => {
-            let end_date = parse_date(end_date)?;
-            // check that the date is not in the future - otherwise set it to now
-            if now.and_utc().timestamp() < end_date.and_utc().timestamp() {
-                now
-            } else {
-                end_date
-            }
-        }
+        Some(end_date) => parse_date(end_date)?,
     };
+
+    let start_date = validate_date(start_date);
+    let end_date = validate_date(end_date);
 
     //  split into ranges
     let mut ranges = Vec::new();
@@ -225,6 +230,29 @@ fn to_tuples(data: Vec<Data>) -> Result<Vec<IntensityForDate>> {
         .collect()
 }
 
+/// Returns a date within a valid date
+///
+/// Datetimes older than 2018-05-10 23:30:00 are invalid.
+/// Also, datetimes in the future are invalid.
+///
+/// - if a datetime is too old, returns the oldest valid date
+/// - if a datetime is in the future, returns now
+/// - otherwise returns the input datetime
+fn validate_date(date: NaiveDateTime) -> NaiveDateTime {
+    let now = Local::now().naive_local();
+
+    // check if date is too old
+    if date < *OLDEST_VALID_DATE {
+        return *OLDEST_VALID_DATE;
+    }
+    // check that the date is not in the future
+    if date > now {
+        return now;
+    }
+
+    date
+}
+
 async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
     let PowerData { data } = get_response(url).await?;
     Ok(data)
@@ -278,6 +306,8 @@ where
 mod tests {
 
     use std::str::FromStr;
+
+    use chrono::{Days, Months, SubsecRound};
 
     use super::*;
 
@@ -352,7 +382,7 @@ mod tests {
     }
 
     #[test]
-    fn normalise_dates_test() {
+    fn normalise_dates_invalid() {
         // Invalid start date
         let result = normalise_dates("not a date", &None);
         assert!(matches!(result, Err(ApiError::DateParseError(_))));
@@ -360,7 +390,50 @@ mod tests {
         // Invalid end date
         let result = normalise_dates("2024-01-01", &Some("not a date"));
         assert!(matches!(result, Err(ApiError::DateParseError(_))));
+    }
 
+    #[test]
+    fn normalise_dates_too_old() {
+        let oldest_valid_date = NaiveDate::from_ymd_opt(2018, 5, 10)
+            .unwrap()
+            .and_hms_opt(23, 30, 0)
+            .unwrap();
+
+        // Start date too old
+        let result = normalise_dates("1111-01-01", &Some("2018-05-15"));
+        assert!(result.is_ok());
+
+        let ranges = result.unwrap();
+        assert_eq!(ranges.len(), 1);
+
+        let expected = vec![(oldest_valid_date, test_date_time("2018-05-15"))];
+        assert_eq!(ranges, expected);
+    }
+
+    #[test]
+    fn normalise_dates_future() {
+        // End date in the future
+        let now = Local::now().naive_local();
+        let five_days = Days::new(5);
+        let five_days_ago = now.checked_sub_days(five_days).unwrap().date();
+        let in_five_days = now.checked_add_days(five_days).unwrap().date();
+
+        let result = normalise_dates(&five_days_ago.to_string(), &Some(&in_five_days.to_string()));
+        assert!(result.is_ok());
+
+        let ranges = result.unwrap();
+        assert_eq!(ranges.len(), 1);
+
+        let (start, end) = ranges[0];
+        let expected_start = five_days_ago.and_hms_opt(0, 0, 0).unwrap();
+        // start unchanged
+        assert_eq!(start, expected_start);
+        // end became now because it was in the future
+        assert_eq!(end.trunc_subsecs(0), now.trunc_subsecs(0));
+    }
+
+    #[test]
+    fn normalise_dates_splitting() {
         // Ranges splitting logic
         let result = normalise_dates("2022-12-01", &Some("2023-01-01"));
         assert!(result.is_ok());
@@ -371,5 +444,35 @@ mod tests {
             (test_date_time("2022-12-27"), test_date_time("2023-01-01")),
         ];
         assert_eq!(ranges, expected);
+    }
+
+    #[test]
+    fn validate_date_test() {
+        // valid dates just returned as-is
+        let just_a_day = test_date_time("2024-07-30");
+        let datetime = validate_date(just_a_day);
+        assert_eq!(datetime.trunc_subsecs(0), just_a_day.trunc_subsecs(0));
+
+        // future dates turns into now
+        let future = Local::now()
+            .naive_local()
+            .checked_add_months(Months::new(2))
+            .unwrap();
+        let datetime = validate_date(future);
+        let now = Local::now().naive_local();
+        assert_eq!(datetime.trunc_subsecs(0), now.trunc_subsecs(0));
+
+        // oldest is fine
+        let oldest_date = NaiveDate::from_ymd_opt(2018, 5, 10)
+            .unwrap()
+            .and_hms_opt(23, 30, 0)
+            .unwrap();
+        let datetime = validate_date(oldest_date);
+        assert_eq!(datetime.trunc_subsecs(0), oldest_date.trunc_subsecs(0));
+
+        // just too old - turn into the oldest valid date
+        let old = test_date_time("1980-12-31");
+        let datetime = validate_date(old);
+        assert_eq!(datetime, oldest_date);
     }
 }
