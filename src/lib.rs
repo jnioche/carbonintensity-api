@@ -123,16 +123,11 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<Vec<(NaiveDateTime
     // if the end is not set - use now
     let end_date = match end {
         None => now,
-        Some(end_date) => {
-            let end_date = parse_date(end_date)?;
-            // check that the date is not in the future - otherwise set it to now
-            if now.and_utc().timestamp() < end_date.and_utc().timestamp() {
-                now
-            } else {
-                end_date
-            }
-        }
+        Some(end_date) => parse_date(end_date)?,
     };
+
+    let start_date = validate_date(start_date)?;
+    let end_date = validate_date(end_date)?;
 
     //  split into ranges
     let mut ranges = Vec::new();
