@@ -310,7 +310,7 @@ mod tests {
 
     use std::str::FromStr;
 
-    use chrono::{Months, SubsecRound};
+    use chrono::{Days, Months, SubsecRound};
 
     use super::*;
 
@@ -397,6 +397,28 @@ mod tests {
         // Start date too old
         let result = normalise_dates("2001-01-01", &None);
         assert!(matches!(result, Err(ApiError::DateTooOld)));
+    }
+
+    #[test]
+    fn normalise_dates_future() {
+        // End date in the future
+        let now = Local::now().naive_local();
+        let five_days = Days::new(5);
+        let five_days_ago = now.checked_sub_days(five_days).unwrap().date();
+        let in_five_days = now.checked_add_days(five_days).unwrap().date();
+
+        let result = normalise_dates(&five_days_ago.to_string(), &Some(&in_five_days.to_string()));
+        assert!(result.is_ok());
+
+        let ranges = result.unwrap();
+        assert_eq!(ranges.len(), 1);
+
+        let (start, end) = ranges[0];
+        let expected_start = five_days_ago.and_hms_opt(0, 0, 0).unwrap();
+        // start unchanged
+        assert_eq!(start, expected_start);
+        // end became now because it was in the future
+        assert_eq!(end.trunc_subsecs(0), now.trunc_subsecs(0));
     }
 
     #[test]
