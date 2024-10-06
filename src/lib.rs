@@ -1,8 +1,10 @@
 //! API for retrieving data from the Carbon Intensity API
 //! <https://api.carbonintensity.org.uk/>
 
-use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use futures::future;
+use std::sync::LazyLock;
+
+use chrono::{Datelike, Duration, Local, NaiveDate, NaiveDateTime, NaiveTime};
 use reqwest::{Client, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
@@ -12,6 +14,14 @@ mod target;
 
 pub use region::Region;
 pub use target::Target;
+
+// oldest entry available for 2018-05-10 23:30:00
+static OLDEST_VALID_DATE: LazyLock<NaiveDateTime> = LazyLock::new(|| {
+    NaiveDate::from_ymd_opt(2018, 5, 10)
+        .unwrap()
+        .and_hms_opt(23, 30, 0)
+        .unwrap()
+});
 
 /// An error communicating with the Carbon Intensity API.
 #[derive(Debug, Error)]
@@ -231,14 +241,8 @@ fn to_tuples(data: Vec<Data>) -> Result<Vec<IntensityForDate>> {
 ///
 /// Otherwise an `Ok` value with the input datetime is returned
 fn validate_date(date: NaiveDateTime) -> Result<NaiveDateTime> {
-    // oldest entry available for 2018-05-10 23:30:00
-    let oldest_date = NaiveDate::from_ymd_opt(2018, 5, 10)
-        .unwrap()
-        .and_hms_opt(23, 30, 0)
-        .unwrap();
-
     // check if date is too old
-    if date < oldest_date {
+    if date < *OLDEST_VALID_DATE {
         return Err(ApiError::DateTooOld);
     }
 
