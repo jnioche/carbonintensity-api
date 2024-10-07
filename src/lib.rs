@@ -290,6 +290,8 @@ where
     T: DeserializeOwned,
 {
     let client = Client::new();
+    #[cfg(debug_assertions)]
+    eprintln!("GET {url}");
     let response = client.get(url).send().await?;
 
     let status = response.status();
