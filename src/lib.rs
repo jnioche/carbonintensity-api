@@ -449,6 +449,22 @@ mod tests {
     }
 
     #[test]
+    fn normalise_dates_skipping_year() {
+        // Ranges spanning 2 year. See: https://github.com/jnioche/carbonintensity-api/issues/6
+        // The API doesn't cope well with ranges spanning more than one year.
+        // If end_date is in a different year the API would use year end as
+        // end_date and don't return any values beyond that datetime.
+        let result = normalise_dates("2022-12-31", &Some("2023-01-02"));
+        assert!(result.is_ok());
+        let ranges = result.unwrap();
+        let expected = vec![
+            (test_date_time("2022-12-31"), test_date_time("2023-01-01")),
+            (test_date_time("2023-01-01"), test_date_time("2023-01-02")),
+        ];
+        assert_eq!(ranges, expected);
+    }
+
+    #[test]
     fn validate_date_test() {
         // valid dates just returned as-is
         let just_a_day = test_date_time("2024-07-30");
