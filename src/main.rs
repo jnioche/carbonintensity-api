@@ -18,15 +18,14 @@ struct Args {
 
     #[clap()]
     /// numerical value for a region (1-17) or first part of a UK postcode
-    pub value: String,
+    pub value: Option<String>,
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
 
-    // let target: Target = args.value.parse().unwrap_or(Target::NATIONAL);
-    let target: Target = args.value.parse().unwrap();
+    let target: Target = args.value.unwrap_or("".to_string()).parse().unwrap();
 
     // look for a range if a date was specified
     if let Some(start_date) = &args.start_date {

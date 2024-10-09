@@ -64,7 +64,7 @@ pub struct Data {
     from: String,
     to: String,
     intensity: Intensity,
-    generationmix: Vec<GenerationMix>,
+    generationmix: Option<Vec<GenerationMix>>,
 }
 
 #[serde_with::skip_serializing_none]
@@ -87,13 +87,19 @@ struct PowerData {
     data: RegionData,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct DataVec {
+    data: Vec<Data>,
+}
+
 static BASE_URL: &str = "https://api.carbonintensity.org.uk";
 
 /// Current carbon intensity for a target (e.g. a region)
 ///
-/// Uses either
+/// Uses one of
 /// - <https://api.carbonintensity.org.uk/regional/postcode/>
 /// - <https://api.carbonintensity.org.uk/regional/regionid/>
+/// - <https://api.carbonintensity.org.uk/intensity>
 pub async fn get_intensity(target: &Target) -> Result<i32> {
     let path = match target {
         Target::Postcode(postcode) => {
@@ -106,10 +112,15 @@ pub async fn get_intensity(target: &Target) -> Result<i32> {
             let region_id = region as u8;
             format!("regional/regionid/{region_id}")
         }
+        &Target::National => "intensity".to_string(),
     };
 
     let url = format!("{BASE_URL}/{path}");
-    get_intensity_for_url(&url).await
+    if *target != Target::National {
+        get_intensity_for_url(&url).await
+    } else {
+        get_intensity_for_url_national(&url).await
+    }
 }
 
 fn parse_date(date: &str) -> std::result::Result<NaiveDateTime, chrono::ParseError> {
@@ -167,9 +178,10 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<Vec<(NaiveDateTime
 /// Dates are strings in ISO-8601 format YYYY-MM-DDThh:mmZ
 /// but YYYY-MM-DD is tolerated
 ///
-/// Uses either
+/// Uses one of
 /// - https://api.carbonintensity.org.uk/regional/intensity/2023-05-15/2023-05-20/postcode/RG10
 /// - https://api.carbonintensity.org.uk/regional/intensity/2023-05-15/2023-05-20/regionid/13
+/// - https://api.carbonintensity.org.uk/intensity/2023-05-15/2023-05-20/
 pub async fn get_intensities(
     target: &Target,
     start: &str,
@@ -187,6 +199,7 @@ pub async fn get_intensities(
             let region_id = region as u8;
             format!("regionid/{region_id}")
         }
+        &Target::National => "intensity".to_string(),
     };
 
     let ranges = normalise_dates(start, end)?;
@@ -269,6 +282,20 @@ async fn get_intensity_for_url(url: &str) -> Result<i32> {
         .data
         .first()
         .ok_or_else(|| ApiError::Error("No intensity data found".to_string()))?
+        .intensity
+        .forecast;
+
+    Ok(intensity)
+}
+
+/// Retrieves the intensity value from a structure
+async fn get_intensity_for_url_national(url: &str) -> Result<i32> {
+    let result = get_response::<DataVec>(url).await?;
+
+    let intensity = result
+        .data
+        .first()
+        .ok_or_else(|| ApiError::Error("No data found".to_string()))?
         .intensity
         .forecast;
 
