@@ -59,3 +59,55 @@ fn handle_result(result: Result<i32, ApiError>, target: &Target) {
         process::exit(1);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use crate::Args;
+    // use clap::CommandFactory;
+
+    fn parsed_args(args: Vec<&str>) -> Result<Args, clap::Error> {
+        let args = ["carbonintensity-api"].iter().chain(args.iter());
+        Args::try_parse_from(args)
+    }
+
+    #[test]
+    fn cli_valid_arguments() {
+        // single postcode
+        let args: Args = parsed_args(vec!["BS7"]).unwrap();
+        assert_eq!(args.value, "BS7");
+
+        // single region id
+        parsed_args(vec!["13"]).unwrap();
+        assert_eq!(args.value, "BS7");
+
+        // start date  / postcode
+        let args = parsed_args(vec!["--start-date", "2024-05-06", "BS7"]).unwrap();
+        assert_eq!(args.start_date, Some("2024-05-06".to_string()));
+        assert_eq!(args.value, "BS7".to_string());
+
+        // start date / region id
+        let args = parsed_args(vec!["--start-date", "2024-05-06", "13"]).unwrap();
+        assert_eq!(args.start_date, Some("2024-05-06".to_string()));
+        assert_eq!(args.value, "13".to_string());
+
+        // start date / end date
+        let args = parsed_args(vec![
+            "--start-date",
+            "2024-05-06",
+            "--end-date",
+            "2024-07-08",
+            "BS7",
+        ])
+        .unwrap();
+        assert_eq!(args.start_date, Some("2024-05-06".to_string()));
+        assert_eq!(args.end_date, Some("2024-07-08".to_string()));
+        assert_eq!(args.value, "BS7".to_string());
+
+        // short names
+        parsed_args(vec!["-s 2024-05-06", "-e 2024-05-06", "BS7"]).unwrap();
+        parsed_args(vec!["-s 2024-05-06", "BS7"]).unwrap();
+        parsed_args(vec!["-e 2024-05-06", "BS7"]).unwrap();
+    }
+}
