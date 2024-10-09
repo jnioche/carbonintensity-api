@@ -215,12 +215,21 @@ pub async fn get_intensities(
             let start_date = start_date.format("%Y-%m-%dT%H:%MZ");
             let end_date = end_date.format("%Y-%m-%dT%H:%MZ");
 
-            let url = format!("{BASE_URL}/regional/intensity/{start_date}/{end_date}/{path}");
+            if *target != Target::National {
+                let url = format!("{BASE_URL}/regional/intensity/{start_date}/{end_date}/{path}");
 
-            tokio::spawn(async move {
-                let region_data = get_intensities_for_url(&url).await?;
-                to_tuples(region_data.data)
-            })
+                tokio::spawn(async move {
+                    let region_data = get_intensities_for_url(&url).await?;
+                    to_tuples(region_data.data)
+                })
+            } else {
+                let url = format!("{BASE_URL}/{path}/{start_date}/{end_date}/");
+
+                tokio::spawn(async move {
+                    let national_data = get_intensities_for_url_national(&url).await?;
+                    to_tuples(national_data.data)
+                })
+            }
         })
         .collect();
 
@@ -268,6 +277,11 @@ fn validate_date(date: NaiveDateTime) -> NaiveDateTime {
 
 async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
     let PowerData { data } = get_response(url).await?;
+    Ok(data)
+}
+
+async fn get_intensities_for_url_national(url: &str) -> Result<DataVec> {
+    let data = get_response::<DataVec>(url).await?;
     Ok(data)
 }
 
