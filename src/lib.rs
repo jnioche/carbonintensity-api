@@ -349,7 +349,7 @@ mod tests {
                     forecast: intensity,
                     index: "very high".to_string(),
                 },
-                generationmix: vec![
+                generationmix: Option::from(vec![
                     GenerationMix {
                         fuel: "gas".to_string(),
                         perc: 80.0,
@@ -362,7 +362,7 @@ mod tests {
                         fuel: "other".to_string(),
                         perc: 10.0,
                     },
-                ],
+                ]),
             }
         }
     }
