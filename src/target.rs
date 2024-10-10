@@ -1,27 +1,40 @@
-use std::str::FromStr;
-
 use crate::Region;
 
 /// Carbon intensity target, e.g. a postcode or a region
+#[derive(Debug, Clone, PartialEq)]
 pub enum Target {
     // NATIONAL,
     Postcode(String),
     Region(Region),
 }
 
-impl FromStr for Target {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+/// Creates a `Target` from a `String`
+///
+/// If the string contains a valid `Region` id this returns a `Target::Region`,
+/// otherwise it returns a `Target::Postcode`.
+///
+/// Note how this is infallible because it balls back to `Target::Postcode`.
+///
+/// ```
+/// # use carbonintensity::{Target, Region};
+/// let target = Target::from("13".to_string());
+/// assert_eq!(target, Target::Region(Region::London));
+///
+/// let target = Target::from("BS7".to_string());
+/// let bs7 = Target::Postcode("BS7".to_string());
+/// assert_eq!(target, bs7);
+/// ```
+impl From<String> for Target {
+    fn from(s: String) -> Self {
         //"" => Ok(Target::NATIONAL)
 
         // Check if input can be parsed as a Region
         if let Ok(region) = s.parse::<Region>() {
-            return Ok(Target::Region(region));
+            return Self::Region(region);
         }
 
         // Assumes the string was a postcode
-        Ok(Target::Postcode(s.to_string()))
+        Self::Postcode(s)
     }
 }
 
