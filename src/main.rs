@@ -18,7 +18,7 @@ struct Args {
 
     #[clap()]
     /// numerical value for a region (1-17) or first part of a UK postcode
-    pub target: String,
+    pub target: Target,
 }
 
 #[tokio::main]
@@ -26,7 +26,7 @@ async fn main() {
     let args = Args::parse();
 
     // let target: Target = args.value.parse().unwrap_or(Target::NATIONAL);
-    let target: Target = args.target.parse().unwrap();
+    let target: Target = args.target;
 
     // look for a range if a date was specified
     if let Some(start_date) = &args.start_date {
@@ -64,8 +64,9 @@ fn handle_result(result: Result<i32, ApiError>, target: &Target) {
 mod tests {
     use clap::Parser;
 
-    use crate::Args;
-    // use clap::CommandFactory;
+    use carbonintensity::Region;
+
+    use crate::{Args, Target};
 
     fn parsed_args(args: Vec<&str>) -> Result<Args, clap::Error> {
         let args = ["carbonintensity-api"].iter().chain(args.iter());
@@ -75,22 +76,22 @@ mod tests {
     #[test]
     fn cli_valid_arguments() {
         // single postcode
-        let args: Args = parsed_args(vec!["BS7"]).unwrap();
-        assert_eq!(args.target, "BS7");
+        let args: Args = parsed_args(vec!["bs7"]).unwrap();
+        assert_eq!(args.target, Target::Postcode("bs7".to_string()));
 
         // single region id
-        parsed_args(vec!["13"]).unwrap();
-        assert_eq!(args.target, "BS7");
+        let args = parsed_args(vec!["13"]).unwrap();
+        assert_eq!(args.target, Target::Region(Region::London));
 
         // start date  / postcode
         let args = parsed_args(vec!["--start-date", "2024-05-06", "BS7"]).unwrap();
         assert_eq!(args.start_date, Some("2024-05-06".to_string()));
-        assert_eq!(args.target, "BS7".to_string());
+        assert_eq!(args.target, Target::Postcode("BS7".to_string()));
 
         // start date / region id
-        let args = parsed_args(vec!["--start-date", "2024-05-06", "13"]).unwrap();
+        let args = parsed_args(vec!["--start-date", "2024-05-06", "16"]).unwrap();
         assert_eq!(args.start_date, Some("2024-05-06".to_string()));
-        assert_eq!(args.target, "13".to_string());
+        assert_eq!(args.target, Target::Region(Region::Scotland));
 
         // start date / end date
         let args = parsed_args(vec![
@@ -103,7 +104,7 @@ mod tests {
         .unwrap();
         assert_eq!(args.start_date, Some("2024-05-06".to_string()));
         assert_eq!(args.end_date, Some("2024-07-08".to_string()));
-        assert_eq!(args.target, "BS7".to_string());
+        assert_eq!(args.target, Target::Postcode("BS7".to_string()));
 
         // short names
         parsed_args(vec!["-s 2024-05-06", "-e 2024-05-06", "BS7"]).unwrap();
