@@ -26,7 +26,9 @@ pub enum Target {
 /// ```
 impl From<String> for Target {
     fn from(s: String) -> Self {
-        //"" => Ok(Target::NATIONAL)
+        if s.trim().is_empty() {
+            return Self::National;
+        }
 
         // Check if input can be parsed as a Region
         if let Ok(region) = s.parse::<Region>() {

@@ -16,8 +16,10 @@ struct Args {
     #[clap(short, long)]
     pub end_date: Option<String>,
 
-    #[clap()]
     /// numerical value for a region (1-17) or first part of a UK postcode
+    /// returns data at the national level if not set
+    #[clap()]
+    #[arg(default_value_t=Target::National)]
     pub target: Target,
 }
 
