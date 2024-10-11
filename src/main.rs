@@ -25,6 +25,9 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
+    #[cfg(unix)]
+    ignore_sigpipe();
+
     let args = Args::parse();
 
     let target: Target = args.target;
@@ -38,6 +41,19 @@ async fn main() {
     } else {
         let result = get_intensity(&target).await;
         handle_result(result, &target);
+    }
+}
+
+/// Ignore SIGPIPE due to std library deficiency <https://github.com/rust-lang/rust/issues/46016>
+#[cfg(unix)]
+fn ignore_sigpipe() {
+    extern "C" {
+        fn signal(signum: i32, handler: usize) -> usize;
+    }
+
+    #[allow(unsafe_code)]
+    unsafe {
+        signal(13 /*SIGPIPE*/, 0 /*SIG_DFL*/);
     }
 }
 
