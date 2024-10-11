@@ -3,14 +3,15 @@ use crate::Region;
 /// Carbon intensity target, e.g. a postcode or a region
 #[derive(Debug, Clone, PartialEq)]
 pub enum Target {
-    // NATIONAL,
+    National,
     Postcode(String),
     Region(Region),
 }
 
 /// Creates a `Target` from a `String`
 ///
-/// If the string contains a valid `Region` id this returns a `Target::Region`,
+/// If the string is equal to 'national' or is empty returns `Target::National.
+/// If it contains a valid `Region` id this returns a `Target::Region`,
 /// otherwise it returns a `Target::Postcode`.
 ///
 /// Note how this is infallible because it balls back to `Target::Postcode`.
@@ -26,7 +27,9 @@ pub enum Target {
 /// ```
 impl From<String> for Target {
     fn from(s: String) -> Self {
-        //"" => Ok(Target::NATIONAL)
+        if s.trim().is_empty() | s.trim().eq_ignore_ascii_case("national") {
+            return Self::National;
+        }
 
         // Check if input can be parsed as a Region
         if let Ok(region) = s.parse::<Region>() {
@@ -41,6 +44,7 @@ impl From<String> for Target {
 impl std::fmt::Display for Target {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let target = match self {
+            Target::National => "National".to_string(),
             Target::Postcode(postcode) => format!("postcode {postcode}"),
             Target::Region(region) => region.to_string(),
         };

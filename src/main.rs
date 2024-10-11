@@ -16,8 +16,10 @@ struct Args {
     #[clap(short, long)]
     pub end_date: Option<String>,
 
-    #[clap()]
     /// numerical value for a region (1-17) or first part of a UK postcode
+    /// returns data at the national level if not set
+    #[clap()]
+    #[arg(default_value_t=Target::National)]
     pub target: Target,
 }
 
@@ -25,7 +27,6 @@ struct Args {
 async fn main() {
     let args = Args::parse();
 
-    // let target: Target = args.value.parse().unwrap_or(Target::NATIONAL);
     let target: Target = args.target;
 
     // look for a range if a date was specified
