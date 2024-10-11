@@ -57,6 +57,7 @@ pub struct GenerationMix {
 pub struct Intensity {
     forecast: i32,
     index: String,
+    actual: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -88,7 +89,7 @@ struct PowerData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct DataVec {
+struct NationalData {
     data: Vec<Data>,
 }
 
@@ -246,7 +247,7 @@ fn to_tuples(data: Vec<Data>) -> Result<Vec<IntensityForDate>> {
     data.into_iter()
         .map(|datum| {
             let start_date = parse_date(&datum.from)?;
-            let intensity = datum.intensity.forecast;
+            let intensity = datum.intensity.actual.unwrap_or(datum.intensity.forecast);
             Ok((start_date, intensity))
         })
         .collect()
@@ -280,8 +281,8 @@ async fn get_intensities_for_url(url: &str) -> Result<RegionData> {
     Ok(data)
 }
 
-async fn get_intensities_for_url_national(url: &str) -> Result<DataVec> {
-    let data = get_response::<DataVec>(url).await?;
+async fn get_intensities_for_url_national(url: &str) -> Result<NationalData> {
+    let data = get_response::<NationalData>(url).await?;
     Ok(data)
 }
 
@@ -304,14 +305,15 @@ async fn get_intensity_for_url(url: &str) -> Result<i32> {
 
 /// Retrieves the intensity value from a structure
 async fn get_intensity_for_url_national(url: &str) -> Result<i32> {
-    let result = get_response::<DataVec>(url).await?;
+    let result = get_response::<NationalData>(url).await?;
 
     let intensity = result
         .data
         .first()
         .ok_or_else(|| ApiError::Error("No data found".to_string()))?
         .intensity
-        .forecast;
+        .actual
+        .unwrap();
 
     Ok(intensity)
 }
@@ -362,6 +364,7 @@ mod tests {
                 intensity: Intensity {
                     forecast: intensity,
                     index: "very high".to_string(),
+                    actual: None,
                 },
                 generationmix: Option::from(vec![
                     GenerationMix {

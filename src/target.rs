@@ -43,7 +43,7 @@ impl From<String> for Target {
 impl std::fmt::Display for Target {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let target = match self {
-            Target::National => "National ".to_string(),
+            Target::National => "National".to_string(),
             Target::Postcode(postcode) => format!("postcode {postcode}"),
             Target::Region(region) => region.to_string(),
         };
