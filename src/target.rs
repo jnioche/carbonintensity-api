@@ -10,7 +10,8 @@ pub enum Target {
 
 /// Creates a `Target` from a `String`
 ///
-/// If the string contains a valid `Region` id this returns a `Target::Region`,
+/// If the string is equal to 'national' or is empty returns `Target::National.
+/// If it contains a valid `Region` id this returns a `Target::Region`,
 /// otherwise it returns a `Target::Postcode`.
 ///
 /// Note how this is infallible because it balls back to `Target::Postcode`.
@@ -26,7 +27,7 @@ pub enum Target {
 /// ```
 impl From<String> for Target {
     fn from(s: String) -> Self {
-        if s.trim().is_empty() {
+        if s.trim().is_empty() | s.trim().eq_ignore_ascii_case("national") {
             return Self::National;
         }
 
