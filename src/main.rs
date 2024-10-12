@@ -3,6 +3,7 @@ use std::process;
 use carbonintensity::{get_intensities, get_intensity, ApiError, Target};
 use chrono::NaiveDateTime;
 use clap::Parser;
+use std::io::Write;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -25,9 +26,6 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
-    #[cfg(unix)]
-    ignore_sigpipe();
-
     let args = Args::parse();
 
     let target: Target = args.target;
@@ -44,23 +42,10 @@ async fn main() {
     }
 }
 
-/// Ignore SIGPIPE due to std library deficiency <https://github.com/rust-lang/rust/issues/46016>
-#[cfg(unix)]
-fn ignore_sigpipe() {
-    extern "C" {
-        fn signal(signum: i32, handler: usize) -> usize;
-    }
-
-    #[allow(unsafe_code)]
-    unsafe {
-        signal(13 /*SIGPIPE*/, 0 /*SIG_DFL*/);
-    }
-}
-
 fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     if let Ok(results) = result {
         for (time, value) in results {
-            println!("{}, {}", time, value);
+            writeln!(std::io::stdout(),"{}, {}", time, value).unwrap_or_default();
         }
     } else {
         eprintln!("{}", result.unwrap_err());
@@ -70,7 +55,7 @@ fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
 
 fn handle_result(result: Result<i32, ApiError>, target: &Target) {
     if result.is_ok() {
-        println!("Carbon intensity for {}: {:?}", target, result.unwrap());
+        writeln!(std::io::stdout(),"Carbon intensity for {}: {:?}", target,result).unwrap();
     } else {
         eprintln!("{}", result.unwrap_err());
         process::exit(1);
