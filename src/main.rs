@@ -61,9 +61,9 @@ fn handle_result(result: Result<i32, ApiError>, target: &Target) {
             std::io::stdout(),
             "Carbon intensity for {}: {:?}",
             target,
-            result
+            result.unwrap()
         )
-        .unwrap();
+        .unwrap_or_default();
     } else {
         eprintln!("{}", result.unwrap_err());
         process::exit(1);
