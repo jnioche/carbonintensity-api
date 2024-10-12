@@ -3,6 +3,7 @@ use std::process;
 use carbonintensity::{get_intensities, get_intensity, ApiError, Target};
 use chrono::NaiveDateTime;
 use clap::Parser;
+use std::io::Write;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -41,10 +42,11 @@ async fn main() {
     }
 }
 
+#[allow(clippy::explicit_write)]
 fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     if let Ok(results) = result {
         for (time, value) in results {
-            println!("{}, {}", time, value);
+            writeln!(std::io::stdout(), "{}, {}", time, value).unwrap_or_default();
         }
     } else {
         eprintln!("{}", result.unwrap_err());
@@ -52,9 +54,16 @@ fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     }
 }
 
+#[allow(clippy::explicit_write)]
 fn handle_result(result: Result<i32, ApiError>, target: &Target) {
     if result.is_ok() {
-        println!("Carbon intensity for {}: {:?}", target, result.unwrap());
+        writeln!(
+            std::io::stdout(),
+            "Carbon intensity for {}: {:?}",
+            target,
+            result.unwrap()
+        )
+        .unwrap_or_default();
     } else {
         eprintln!("{}", result.unwrap_err());
         process::exit(1);

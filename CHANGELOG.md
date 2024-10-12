@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - prevent start date to be before first data available ([issue #15](https://github.com/jnioche/carbonintensity-api/issues/15))
+- Prevent CLI to panic when the pipe is broken ([issue #5](https://github.com/jnioche/carbonintensity-api/issues/5))
 
 ### Removed
 
