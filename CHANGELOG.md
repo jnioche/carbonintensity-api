@@ -20,10 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - ability to retrieve national data ([issue #9](https://github.com/jnioche/carbonintensity-api/issues/9))
-- added `Cargo.lock` that should help with the binary compilation reproducibility
+- added `Cargo.lock` to improve compilation reproducibility of the binary
   ([PR #21](https://github.com/jnioche/carbonintensity-api/pull/21))
-- added `rust-version` to `Cargo.toml` to make it more explicit which version
-  or Rust compiles this ([commit](https://github.com/jnioche/carbonintensity-api/commit/f92d03673181f3be8f0954724b60dd38b1808145))
+- added `rust-version` to `Cargo.toml` to make it explicit which version
+  of Rust compiles the crate ([commit](https://github.com/jnioche/carbonintensity-api/commit/f92d03673181f3be8f0954724b60dd38b1808145))
 - run clippy in CI ([PR #22](https://github.com/jnioche/carbonintensity-api/pull/22))
 - check for semver violations in CI ([PR #28](https://github.com/jnioche/carbonintensity-api/pull/28))
 - more tests
