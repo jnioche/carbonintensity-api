@@ -39,7 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- TODO
+- see 'Breaking' section above
 
 [Unreleased]: https://github.com/jnioche/carbonintensity-api/compare/0.2.0...HEAD
 
