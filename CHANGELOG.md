@@ -11,11 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - variants added to public enum `ApiError`
 - `get_intensity_postcode()`/`get_intensity_region()` removed, use `get_intensity()`
-  instead, this takes a `Target` value (e.g. `Target::Postcode`)
+  instead. This takes a `Target` (e.g. national/region/postcode)
 - `get_intensities_postcode()`/`get_intensities_region()` removed, use `get_intensities()`
-  instead, this takes 
+  instead. This takes a `Target` (e.g. national/region/postcode)
 - `get_intensities()` signature changed, instead of taking just a URL now
-  takes the `Target` (e.g. `Target::Region`) and the start/end date
+  takes a `Target` (e.g. national/region/postcode) and the start/end date
 
 ### Added
 
