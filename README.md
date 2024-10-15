@@ -24,10 +24,10 @@ should display the list of available commands and options.
 ```
 Provides a client for the UK National Grid Carbon Intensity API
 
-Usage: carbonintensity-api [OPTIONS] <VALUE>
+Usage: carbonintensity-api [OPTIONS] [TARGET]
 
 Arguments:
-  <VALUE>  numerical value for a region (1-17) or first part of a UK postcode
+  [TARGET]  numerical value for a region (1-17) or first part of a UK postcode returns data at the national level if not set [default: National]
 
 Options:
   -s, --start-date <START_DATE>  
@@ -36,16 +36,21 @@ Options:
   -V, --version                  Print version
 ```
 
-To display the current carbon intensity for a given postcode
+To display the current carbon intensity at national level
+
+`carbonintensity-api`
+
+for a given postcode
 
 `carbonintensity-api bs7`
 
-To do the same for a region 
+or a region 
 
 `carbonintensity-api 11`
 
 The region id is a number between 1 and 17
 
+```
  1. North Scotland
  2. South Scotland
  3. North West England
@@ -63,9 +68,9 @@ The region id is a number between 1 and 17
  15. England
  16. Scotland
  17. Wales
+```
 
-
-Specifying dates will return a list of intensities for a region or postcode. If no end date is provided, the current day and time will be used.
+Specifying dates will return a list of intensities. If no end date is provided, the current day and time will be used.
 
 The dates are expected to be at the `%Y-%m-%dT%H:%MZ` format or simply `%Y-%m-%d`, for instance 
 
@@ -94,3 +99,7 @@ use carbonintensity::{get_intensity, Target, Region};
 ## License
 
 This project is provided under [Apache License](http://www.apache.org/licenses/LICENSE-2.0).
+
+## Changelog
+
+See [CHANGELOG](CHANGELOG.md).
