@@ -10,8 +10,9 @@ keywords = ["carbon-intensity-api", "energy", "api", "national-grid"]
 license = "Apache-2.0"
 
 [dependencies]
-reqwest = { version = "0.12", features = [
+reqwest = { version = "0.12", default-features = false, features = [
     "json",
+    "rustls-tls",
 ] } # reqwest with JSON parsing support
 serde = { version = "1.0.108", features = ["derive"] }
 serde_json = "1.0.108"

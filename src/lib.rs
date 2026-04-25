@@ -155,20 +155,37 @@ fn normalise_dates(start: &str, end: &Option<&str>) -> Result<Vec<(NaiveDateTime
     let duration = Duration::days(13);
     let mut current = start_date;
     loop {
-        let mut next_end = current + duration;
-        // break the end of year boundary
+        let next_end = current + duration;
+
         let new_year_d = NaiveDate::from_ymd_opt(current.year() + 1, 1, 1).unwrap();
         let new_year = NaiveDateTime::new(new_year_d, NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+
         if next_end >= new_year {
-            next_end = new_year;
+            // The API silently truncates cross-year requests at Dec 31 23:00 (the slot
+            // from=23:30 whose 'to' is Jan 1 is never returned by any request — API
+            // limitation). Avoid cross-year URLs by splitting 30 min before year end,
+            // then restarting cleanly from Jan 1.
+            if end_date < new_year {
+                ranges.push((current, end_date));
+                break;
+            }
+            let chunk_end = new_year - Duration::minutes(30);
+            if chunk_end > current {
+                ranges.push((current, chunk_end));
+            }
+            current = new_year;
+            if current >= end_date {
+                break;
+            }
+            continue;
         }
+
         if next_end >= end_date {
             ranges.push((current, end_date));
             break;
-        } else {
-            ranges.push((current, next_end));
         }
 
+        ranges.push((current, next_end));
         current = next_end;
     }
     Ok(ranges)
@@ -478,33 +495,71 @@ mod tests {
         assert_eq!(end.trunc_subsecs(0), now.trunc_subsecs(0));
     }
 
+    fn year_end_23_30(year: i32) -> NaiveDateTime {
+        NaiveDate::from_ymd_opt(year, 12, 31)
+            .unwrap()
+            .and_hms_opt(23, 30, 0)
+            .unwrap()
+    }
+
     #[test]
     fn normalise_dates_splitting() {
-        // Ranges splitting logic
+        // Range that ends exactly at Jan 1: last chunk ends at Dec 31 23:30
+        // (the Dec 31 23:30 slot whose 'to' is Jan 1 is never accessible from the API)
         let result = normalise_dates("2022-12-01", &Some("2023-01-01"));
         assert!(result.is_ok());
         let ranges = result.unwrap();
         let expected = vec![
             (test_date_time("2022-12-01"), test_date_time("2022-12-14")),
             (test_date_time("2022-12-14"), test_date_time("2022-12-27")),
-            (test_date_time("2022-12-27"), test_date_time("2023-01-01")),
+            (test_date_time("2022-12-27"), year_end_23_30(2022)),
         ];
         assert_eq!(ranges, expected);
     }
 
     #[test]
     fn normalise_dates_skipping_year() {
-        // Ranges spanning 2 year. See: https://github.com/jnioche/carbonintensity-api/issues/6
-        // The API doesn't cope well with ranges spanning more than one year.
-        // If end_date is in a different year the API would use year end as
-        // end_date and don't return any values beyond that datetime.
+        // Ranges spanning 2 years. See: https://github.com/jnioche/carbonintensity-api/issues/6
+        // The API silently truncates cross-year requests at Dec 31 23:00; the Dec 31 23:30
+        // slot (whose 'to' is Jan 1) is never returned by any request (API limitation).
+        // The fix splits 30 min before year end so chunk URLs stay within the current year,
+        // then restarts cleanly from Jan 1.
         let result = normalise_dates("2022-12-31", &Some("2023-01-02"));
         assert!(result.is_ok());
         let ranges = result.unwrap();
         let expected = vec![
-            (test_date_time("2022-12-31"), test_date_time("2023-01-01")),
+            (test_date_time("2022-12-31"), year_end_23_30(2022)),
             (test_date_time("2023-01-01"), test_date_time("2023-01-02")),
         ];
+        assert_eq!(ranges, expected);
+    }
+
+    #[test]
+    fn normalise_dates_year_boundary_slot() {
+        // Chunk ending before year end stays entirely within the current year (no cross-year
+        // truncation). Chunk after boundary starts cleanly at Jan 1.
+        // Verified with the live API: URL ending at Dec 31 23:31Z returns 47 Dec 31 slots
+        // (00:00 through 23:00); the 23:30 slot is permanently inaccessible.
+        let result = normalise_dates("2022-12-30", &Some("2023-01-02"));
+        assert!(result.is_ok());
+        let ranges = result.unwrap();
+
+        // Last range of current year must end at Dec 31 23:30
+        let last_current_year = ranges.iter().filter(|(_, e)| e.year() == 2022).last().unwrap();
+        assert_eq!(last_current_year.1, year_end_23_30(2022));
+
+        // First range of new year must start at Jan 1 00:00
+        let first_new_year = ranges.iter().find(|(s, _)| s.year() == 2023).unwrap();
+        assert_eq!(first_new_year.0, test_date_time("2023-01-01"));
+    }
+
+    #[test]
+    fn normalise_dates_end_within_current_year() {
+        // When end_date is within the current year, no year-boundary split occurs
+        let result = normalise_dates("2022-12-28", &Some("2022-12-30"));
+        assert!(result.is_ok());
+        let ranges = result.unwrap();
+        let expected = vec![(test_date_time("2022-12-28"), test_date_time("2022-12-30"))];
         assert_eq!(ranges, expected);
     }
 
