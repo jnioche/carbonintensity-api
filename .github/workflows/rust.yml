@@ -3,8 +3,12 @@ name: Rust
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - ".github/workflows/**"
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - ".github/workflows/**"
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Run clippy
       run: cargo clippy -- -Dwarnings
     - name: Build
