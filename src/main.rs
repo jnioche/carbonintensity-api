@@ -1,6 +1,9 @@
 use std::process;
 
-use carbonintensity::{get_intensities, get_intensity, ApiError, Target};
+use carbonintensity::{
+    get_intensities, get_intensities_with_mix, get_intensity, ApiError, IntensityWithMix, Target,
+    FUELS,
+};
 use chrono::NaiveDateTime;
 use clap::Parser;
 use std::io::Write;
@@ -16,6 +19,11 @@ struct Args {
     pub start_date: Option<String>,
     #[clap(short, long)]
     pub end_date: Option<String>,
+
+    /// outputs the generation mix as CSV along with the intensities
+    /// (regions and postcodes only, requires a start date)
+    #[clap(short, long, requires = "start_date")]
+    pub mix: bool,
 
     /// numerical value for a region (1-17) or first part of a UK postcode
     /// returns data at the national level if not set
@@ -34,8 +42,13 @@ async fn main() {
     if let Some(start_date) = &args.start_date {
         let end_date: Option<&str> = args.end_date.as_deref();
 
-        let result = get_intensities(&target, start_date, &end_date).await;
-        handle_results(result);
+        if args.mix {
+            let result = get_intensities_with_mix(&target, start_date, &end_date).await;
+            handle_results_with_mix(result);
+        } else {
+            let result = get_intensities(&target, start_date, &end_date).await;
+            handle_results(result);
+        }
     } else {
         let result = get_intensity(&target).await;
         handle_result(result, &target);
@@ -51,6 +64,37 @@ fn handle_results(result: Result<Vec<(NaiveDateTime, i32)>, ApiError>) {
     } else {
         eprintln!("{}", result.unwrap_err());
         process::exit(1);
+    }
+}
+
+/// Writes the results as CSV with one column per fuel
+#[allow(clippy::explicit_write)]
+fn handle_results_with_mix(result: Result<Vec<IntensityWithMix>, ApiError>) {
+    let results = result.unwrap_or_else(|err| {
+        eprintln!("{}", err);
+        process::exit(1);
+    });
+
+    let mut stdout = std::io::stdout().lock();
+    writeln!(stdout, "time,intensity,{}", FUELS.join(",")).unwrap_or_default();
+    for result in results {
+        for m in &result.mix {
+            if !FUELS.contains(&m.fuel.as_str()) {
+                eprintln!("Unknown fuel '{}' at {} ignored", m.fuel, result.from);
+            }
+        }
+        let percs: Vec<String> = FUELS
+            .iter()
+            .map(|fuel| result.perc(fuel).map(|p| p.to_string()).unwrap_or_default())
+            .collect();
+        writeln!(
+            stdout,
+            "{},{},{}",
+            result.from,
+            result.intensity,
+            percs.join(",")
+        )
+        .unwrap_or_default();
     }
 }
 
@@ -120,5 +164,16 @@ mod tests {
         parsed_args(vec!["-s 2024-05-06", "-e 2024-05-06", "BS7"]).unwrap();
         parsed_args(vec!["-s 2024-05-06", "BS7"]).unwrap();
         parsed_args(vec!["-e 2024-05-06", "BS7"]).unwrap();
+
+        // mix
+        let args = parsed_args(vec!["-s", "2024-05-06", "--mix", "13"]).unwrap();
+        assert!(args.mix);
+        let args = parsed_args(vec!["-s", "2024-05-06", "13"]).unwrap();
+        assert!(!args.mix);
+    }
+
+    #[test]
+    fn cli_mix_requires_start_date() {
+        assert!(parsed_args(vec!["--mix", "13"]).is_err());
     }
 }

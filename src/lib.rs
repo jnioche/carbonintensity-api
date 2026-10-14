@@ -47,10 +47,30 @@ pub type Result<T> = std::result::Result<T, ApiError>;
 
 pub type IntensityForDate = (NaiveDateTime, i32);
 
-#[derive(Debug, Serialize, Deserialize)]
+/// Fuel types reported by the API in the generation mix
+pub const FUELS: [&str; 9] = [
+    "biomass", "coal", "imports", "gas", "nuclear", "other", "hydro", "solar", "wind",
+];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GenerationMix {
-    fuel: String,
-    perc: f64,
+    pub fuel: String,
+    pub perc: f64,
+}
+
+/// Intensity for a 30 minutes window, along with the generation mix behind it
+#[derive(Debug, Clone, PartialEq)]
+pub struct IntensityWithMix {
+    pub from: NaiveDateTime,
+    pub intensity: i32,
+    pub mix: Vec<GenerationMix>,
+}
+
+impl IntensityWithMix {
+    /// Percentage for a given fuel or None if the fuel is not in the mix
+    pub fn perc(&self, fuel: &str) -> Option<f64> {
+        self.mix.iter().find(|m| m.fuel == fuel).map(|m| m.perc)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -188,6 +208,41 @@ pub async fn get_intensities(
     start: &str,
     end: &Option<&str>,
 ) -> Result<Vec<IntensityForDate>> {
+    get_data_for_ranges(target, start, end, to_tuples).await
+}
+
+/// Get intensities along with their generation mix for a given target (region or postcode)
+/// in 30 minutes windows
+///
+/// Dates are strings in ISO-8601 format YYYY-MM-DDThh:mmZ
+/// but YYYY-MM-DD is tolerated
+///
+/// The generation mix is only returned by the regional endpoints,
+/// an error is returned if the target is National.
+pub async fn get_intensities_with_mix(
+    target: &Target,
+    start: &str,
+    end: &Option<&str>,
+) -> Result<Vec<IntensityWithMix>> {
+    if *target == Target::National {
+        return Err(ApiError::Error(
+            "Generation mix is not available at the national level".to_string(),
+        ));
+    }
+    get_data_for_ranges(target, start, end, to_intensities_with_mix).await
+}
+
+/// Splits the dates into ranges, queries them concurrently
+/// and converts the results with `convert`
+async fn get_data_for_ranges<T>(
+    target: &Target,
+    start: &str,
+    end: &Option<&str>,
+    convert: fn(Vec<Data>) -> Result<Vec<T>>,
+) -> Result<Vec<T>>
+where
+    T: Send + 'static,
+{
     let path = match target {
         Target::Postcode(postcode) => {
             if postcode.len() < 2 || postcode.len() > 4 {
@@ -221,14 +276,14 @@ pub async fn get_intensities(
 
                 tokio::spawn(async move {
                     let region_data = get_intensities_for_url(&url).await?;
-                    to_tuples(region_data.data)
+                    convert(region_data.data)
                 })
             } else {
                 let url = format!("{BASE_URL}/{path}/{start_date}/{end_date}/");
 
                 tokio::spawn(async move {
                     let national_data = get_intensities_for_url_national(&url).await?;
-                    to_tuples(national_data.data)
+                    convert(national_data.data)
                 })
             }
         })
@@ -238,7 +293,7 @@ pub async fn get_intensities(
     tasks_results
         .into_iter()
         .collect::<Result<Vec<_>>>() // convert to single Result
-        .map(|nested_tuples| nested_tuples.into_iter().flatten().collect())
+        .map(|nested| nested.into_iter().flatten().collect())
 }
 
 /// converts the values from JSON into a simpler
@@ -249,6 +304,22 @@ fn to_tuples(data: Vec<Data>) -> Result<Vec<IntensityForDate>> {
             let start_date = parse_date(&datum.from)?;
             let intensity = datum.intensity.actual.unwrap_or(datum.intensity.forecast);
             Ok((start_date, intensity))
+        })
+        .collect()
+}
+
+/// converts the values from JSON into IntensityWithMix
+fn to_intensities_with_mix(data: Vec<Data>) -> Result<Vec<IntensityWithMix>> {
+    data.into_iter()
+        .map(|datum| {
+            let from = parse_date(&datum.from)?;
+            let intensity = datum.intensity.actual.unwrap_or(datum.intensity.forecast);
+            let mix = datum.generationmix.unwrap_or_default();
+            Ok(IntensityWithMix {
+                from,
+                intensity,
+                mix,
+            })
         })
         .collect()
 }
@@ -418,13 +489,41 @@ mod tests {
     }
 
     #[test]
+    fn to_intensities_with_mix_test() {
+        let data = vec![
+            Data::test_data("2024-01-01", "2024-02-01", 350),
+            Data::test_data("2024-02-01", "2024-03-01", 300),
+        ];
+        let result = to_intensities_with_mix(data).unwrap();
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].from, test_date_time("2024-01-01"));
+        assert_eq!(result[0].intensity, 350);
+        assert_eq!(result[1].intensity, 300);
+        assert_eq!(result[0].perc("gas"), Some(80.0));
+        assert_eq!(result[0].perc("wind"), Some(10.0));
+        assert_eq!(result[0].perc("solar"), None);
+
+        let data = vec![Data::test_data("Invalid", "2024-03-01", 300)];
+        let result = to_intensities_with_mix(data);
+        assert!(matches!(result, Err(ApiError::DateParseError(_))));
+    }
+
+    #[test]
     fn deserialise_power_data_test() {
         let json_str = r#"
         {"data":{"regionid":11,"shortname":"South West England","postcode":"BS7","data":[{"from":"2022-12-31T23:30Z","to":"2023-01-01T00:00Z","intensity":{"forecast":152,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.4},{"fuel":"coal","perc":3.3},{"fuel":"imports","perc":14.3},{"fuel":"gas","perc":28.5},{"fuel":"nuclear","perc":7},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.5},{"fuel":"solar","perc":0},{"fuel":"wind","perc":45.1}]},{"from":"2023-01-01T00:00Z","to":"2023-01-01T00:30Z","intensity":{"forecast":181,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.4},{"fuel":"coal","perc":3.4},{"fuel":"imports","perc":9.1},{"fuel":"gas","perc":36.1},{"fuel":"nuclear","perc":6.8},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":42.8}]},{"from":"2023-01-01T00:30Z","to":"2023-01-01T01:00Z","intensity":{"forecast":189,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.3},{"fuel":"coal","perc":3.4},{"fuel":"imports","perc":12.1},{"fuel":"gas","perc":37.6},{"fuel":"nuclear","perc":6.4},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":38.8}]},{"from":"2023-01-01T01:00Z","to":"2023-01-01T01:30Z","intensity":{"forecast":183,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.7},{"fuel":"coal","perc":3.2},{"fuel":"imports","perc":6.1},{"fuel":"gas","perc":37.3},{"fuel":"nuclear","perc":7.3},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":44}]},{"from":"2023-01-01T01:30Z","to":"2023-01-01T02:00Z","intensity":{"forecast":175,"index":"moderate"},"generationmix":[{"fuel":"biomass","perc":1.5},{"fuel":"coal","perc":2.9},{"fuel":"imports","perc":6.6},{"fuel":"gas","perc":36},{"fuel":"nuclear","perc":7.2},{"fuel":"other","perc":0},{"fuel":"hydro","perc":0.4},{"fuel":"solar","perc":0},{"fuel":"wind","perc":45.5}]}]}}
     "#;
 
-        let _result: std::result::Result<PowerData, serde_json::Error> =
-            serde_json::from_str(json_str);
+        let result: PowerData = serde_json::from_str(json_str).unwrap();
+        let result = to_intensities_with_mix(result.data.data).unwrap();
+        assert_eq!(result.len(), 5);
+        assert_eq!(result[0].intensity, 152);
+        assert_eq!(result[0].perc("wind"), Some(45.1));
+        // all fuels returned by the API are known
+        for fuel in result[0].mix.iter().map(|m| m.fuel.as_str()) {
+            assert!(FUELS.contains(&fuel), "unknown fuel {fuel}");
+        }
     }
 
     #[test]

@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `get_intensities_with_mix` returns the generation mix along with the intensities (regional only)
+- `--mix` CLI option to output the generation mix as CSV
+
 ### Changed
 
 ### Fixed
