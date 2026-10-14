@@ -100,17 +100,18 @@ fn handle_results_with_mix(result: Result<Vec<IntensityWithMix>, ApiError>) {
 
 #[allow(clippy::explicit_write)]
 fn handle_result(result: Result<i32, ApiError>, target: &Target) {
-    if result.is_ok() {
-        writeln!(
-            std::io::stdout(),
-            "Carbon intensity for {}: {:?}",
-            target,
-            result.unwrap()
-        )
-        .unwrap_or_default();
-    } else {
-        eprintln!("{}", result.unwrap_err());
-        process::exit(1);
+    match result {
+        Ok(intensity) => {
+            writeln!(
+                std::io::stdout(),
+                "Carbon intensity for {target}: {intensity:?}"
+            )
+            .unwrap_or_default();
+        }
+        Err(err) => {
+            eprintln!("{err}");
+            process::exit(1);
+        }
     }
 }
 
