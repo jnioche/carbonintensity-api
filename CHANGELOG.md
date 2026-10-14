@@ -7,22 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Breaking
+[Unreleased]: https://github.com/jnioche/carbonintensity-api/compare/0.4.0...HEAD
+
+## [0.4.0] - 2026-10-14
 
 ### Added
 
 - `get_intensities_with_mix` returns the generation mix along with the intensities (regional only)
 - `--mix` CLI option to output the generation mix as CSV
+- release workflow publishing to crates.io and attaching prebuilt binaries to GitHub releases
 
 ### Changed
 
-### Fixed
+- use rustls instead of native TLS for HTTPS requests
+- dependency upgrades
 
-### Removed
-
-- see 'Breaking' section above
-
-[Unreleased]: https://github.com/jnioche/carbonintensity-api/compare/0.3.0...HEAD
+[0.4.0]: https://github.com/jnioche/carbonintensity-api/compare/0.3.0...0.4.0
 
 ## [0.3.0] - 2024-10-15
 
