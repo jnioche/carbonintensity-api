@@ -32,6 +32,7 @@ Arguments:
 Options:
   -s, --start-date <START_DATE>  
   -e, --end-date <END_DATE>
+  -m, --mix                      outputs the generation mix as CSV along with the intensities (regions and postcodes only, requires a start date)
   -h, --help                     Print help
   -V, --version                  Print version
 ```
@@ -77,6 +78,18 @@ The dates are expected to be at the `%Y-%m-%dT%H:%MZ` format or simply `%Y-%m-%d
 `carbonintensity-api -s 2023-11-11 -e 2023-11-11T12:00Z postcode bs7`
 
 Intensities are returned by 30 mins windows.
+
+Adding `--mix` returns the generation mix (as percentages) behind each value, in CSV format
+
+`carbonintensity-api -s 2025-11-10T11:30Z -e 2025-11-10T12:30Z --mix 12`
+
+```
+time,intensity,biomass,coal,imports,gas,nuclear,other,hydro,solar,wind
+2025-11-10 11:30:00,249,4.4,0,14.8,58.8,0.4,0,0.1,5.3,16.2
+2025-11-10 12:00:00,272,2.8,0,13.7,65.2,0.4,0,0.1,4.9,12.9
+```
+
+The generation mix is only available for regions and postcodes, not at the national level.
 
 ## Library
 
