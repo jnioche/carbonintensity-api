@@ -1,0 +1,25 @@
+name: Carbon estimate
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write # to publish the badge on the `badges` branch
+
+jobs:
+  estimate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aspen - GitHub Actions Carbon Estimator
+        id: aspen
+        uses: DigitalPebble/aspen@v1
+        with:
+            publish_badge: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carbon-estimate
+          path: ${{ steps.aspen.outputs.report-path }}
